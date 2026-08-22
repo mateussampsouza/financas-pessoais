@@ -1,0 +1,85 @@
+Aplicativo de finanças pessoas.
+responsito, para que funcione bem na tela do computador e do smartphone.
+modo escuro.
+aplicativo web feito em python ultima versão e o front-end use o que a de mais moderno que se integra bem com o python.
+use boas praticas.
+crie testes.
+use um banco de dados leve criado localmente para persistir as informações
+
+
+1 - Tela Home
+
+	Em um card mostrar
+	saldo atual
+	grafico em barra horizontal mostrando despesas e receitas.
+	lista de transações recentes (somente de hoje e até 3 dias para tras)
+
+2 - Tela Todas as Transações
+
+	1-filtro por data que ira filtrar as transações por data
+	no filtro a data inicial valor padrão é o primeiro dia do mês atual
+	no filtro data final é o ultimo dia do mês atual
+	no filtro não precisa da hora, somente o dia, mês e ano.
+
+	2-botões para escolher entre todas ou despesa ou receita
+
+as transações recentes na tela home e as transações na tela de todas as transações serão mostradas em uma lista de cards com.
+1-descrição da transação
+2-despesa ou receita
+3-valor
+4-categoria
+5-data e hora
+6-ao clicar em uma transação, vai para a tela Nova Transação mudando nome para Editar Transação, para que essa transação que foi clicada seja editada.
+
+a lista de transações na tela de Todas as Transações será filtrada pelo campos data (data inicial e data final) e botões (todas ou despesa ou receita)
+
+
+3 - Tela Categorias
+
+	1-filtro por data que ira filtrar as categorias por data
+	no filtro a data inicial valor padrão é o primeiro dia do mês atual
+	no filtro data final é o ultimo dia do mês atual
+	no filtro não precisa da hora, somente o dia, mês e ano.
+
+	2-um card com um grafico em donut mostrando as despesas por categoria no periodo selecionado no filtro
+
+	3-as categorias serão mostradas em uma lista de cards com
+	icone da categoria
+	cor da categoria
+	nome da categoria
+	total de gasto no periodo selecionada no filtro para essa categoria
+
+	4-botao adicionar categoria que vai para a tela Nova Categoria
+
+	6-ao clicar em uma categoria, vai para a tela Nova Categoria mudando nome para Editar Categoria, para que essa categoria que foi clicada seja editada, podendo editar somente, icone, nome e cor
+
+
+
+4 - Tela Nova/Editar Transação
+
+	Formulario com os campos
+	1-valor
+	2-categoria
+	3-data
+	4-hora
+	5-repetir mensalmente
+	6-botão salvar
+
+
+
+
+5 - Tela Nova/Editar Categoria
+
+	Formulario com os campos
+	1-nome
+	2-selecione o icone
+	3-selecione a cor
+	4-botão salvar
+
+
+6 - Menu será um menu fixo na parte de baixo com o seguintes botões
+home - tela home
+transações - tela todas transações
+categorias - tela todas categorias
+novo - nova trasação
+

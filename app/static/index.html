@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>Finanças Pessoais - Gestão Financeira Inteligente</title>
+  <meta name="description" content="Aplicativo de finanças pessoais responsivo com modo escuro, gráficos interativos e controle total de despesas e receitas.">
+  
+  <!-- Google Fonts Outfit -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Custom CSS -->
+  <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+
+  <div class="app-container">
+    
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="header-brand">
+        <div class="header-icon-box">
+          <i data-lucide="wallet-cards"></i>
+        </div>
+        <h1 class="header-title">Finanças</h1>
+      </div>
+    </header>
+
+    <!-- MAIN VIEWS -->
+    
+    <!-- 1 - TELA HOME -->
+    <section id="view-home" class="view active">
+      <!-- Balance Card -->
+      <div class="card balance-card">
+        <span class="balance-label">Saldo Atual</span>
+        <div id="homeBalanceAmount" class="balance-amount">R$ 0,00</div>
+        
+        <span class="card-title">Despesas vs Receitas</span>
+        <div class="chart-box horizontal-bar-box">
+          <canvas id="homeBarChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Recent Transactions List (Today and 3 days back) -->
+      <div class="section-header">
+        <h2 class="section-title">Transações Recentes</h2>
+        <span class="section-subtitle">Últimos 3 dias</span>
+      </div>
+      <div id="homeRecentList" class="transaction-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- 2 - TELA TODAS AS TRANSAÇÕES -->
+    <section id="view-transactions" class="view">
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-dates">
+          <div class="form-group">
+            <label for="txFilterStart">Data Inicial</label>
+            <input type="date" id="txFilterStart" class="input-control">
+          </div>
+          <div class="form-group">
+            <label for="txFilterEnd">Data Final</label>
+            <input type="date" id="txFilterEnd" class="input-control">
+          </div>
+        </div>
+
+        <!-- Filter Toggle Buttons -->
+        <div class="type-toggle-group">
+          <button type="button" class="type-toggle-btn active" data-type="all">Todas</button>
+          <button type="button" class="type-toggle-btn" data-type="despesa">Despesas</button>
+          <button type="button" class="type-toggle-btn" data-type="receita">Receitas</button>
+        </div>
+      </div>
+
+      <!-- Transactions List -->
+      <div class="section-header">
+        <h2 class="section-title">Transações do Período</h2>
+      </div>
+      <div id="transactionsList" class="transaction-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- 3 - TELA CATEGORIAS -->
+    <section id="view-categories" class="view">
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-dates">
+          <div class="form-group">
+            <label for="catFilterStart">Data Inicial</label>
+            <input type="date" id="catFilterStart" class="input-control">
+          </div>
+          <div class="form-group">
+            <label for="catFilterEnd">Data Final</label>
+            <input type="date" id="catFilterEnd" class="input-control">
+          </div>
+        </div>
+      </div>
+
+      <!-- Donut Chart Card -->
+      <div class="card">
+        <div class="card-title">
+          <span>Despesas por Categoria</span>
+          <i data-lucide="pie-chart" style="width: 18px; height: 18px;"></i>
+        </div>
+        <div class="chart-box donut-box">
+          <canvas id="categoryDonutChart"></canvas>
+        </div>
+      </div>
+
+      <!-- Categories Header & Add Button -->
+      <div class="section-header">
+        <h2 class="section-title">Categorias</h2>
+        <button type="button" class="btn btn-secondary" onclick="openNewCategory()" style="padding: 6px 12px; font-size: 0.82rem;">
+          <i data-lucide="plus" style="width: 16px; height: 16px;"></i>
+          Adicionar
+        </button>
+      </div>
+
+      <!-- Category Cards List -->
+      <div id="categoriesList" class="category-list">
+        <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- 4 - TELA NOVA / EDITAR TRANSAÇÃO -->
+    <section id="view-form-transaction" class="view">
+      <div class="card form-card">
+        <h2 id="txFormTitle" class="section-title">Nova Transação</h2>
+
+        <form id="txForm">
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="txType">Tipo de Transação</label>
+            <select id="txType" class="select-control" required>
+              <option value="despesa">Despesa</option>
+              <option value="receita">Receita</option>
+            </select>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="txDescription">Descrição</label>
+            <input type="text" id="txDescription" class="input-control" placeholder="Ex: Supermercado, Aluguel, Salário..." required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="txAmount">Valor (R$)</label>
+            <input type="number" id="txAmount" class="input-control" step="0.01" min="0.01" placeholder="0,00" required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="txCategory">Categoria</label>
+            <select id="txCategory" class="select-control" required>
+              <!-- Populated dynamically -->
+            </select>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 12px;">
+            <div class="form-group">
+              <label for="txDate">Data</label>
+              <input type="date" id="txDate" class="input-control" required>
+            </div>
+            <div class="form-group">
+              <label for="txTime">Hora</label>
+              <input type="time" id="txTime" class="input-control" required>
+            </div>
+          </div>
+
+          <div class="checkbox-group" style="margin-bottom: 18px;">
+            <input type="checkbox" id="txRepeatMonthly">
+            <label for="txRepeatMonthly" class="checkbox-label">Repetir mensalmente</label>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-full">
+              <i data-lucide="check" style="width: 18px; height: 18px;"></i>
+              Salvar Transação
+            </button>
+            <button type="button" id="txDeleteBtn" class="btn btn-danger btn-full" style="display: none;">
+              <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i>
+              Excluir Transação
+            </button>
+            <button type="button" class="btn btn-secondary btn-full" onclick="navigateTo('transactions')">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 5 - TELA NOVA / EDITAR CATEGORIA -->
+    <section id="view-form-category" class="view">
+      <div class="card form-card">
+        <h2 id="catFormTitle" class="section-title">Nova Categoria</h2>
+
+        <form id="catForm">
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label for="catName">Nome da Categoria</label>
+            <input type="text" id="catName" class="input-control" placeholder="Ex: Farmácia, Viagens..." required>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 14px;">
+            <label>Selecione o Ícone</label>
+            <div id="iconPickerGrid" class="icon-picker-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <div class="form-group" style="margin-bottom: 18px;">
+            <label>Selecione a Cor</label>
+            <div id="colorPickerGrid" class="color-picker-grid">
+              <!-- Rendered dynamically -->
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary btn-full">
+              <i data-lucide="check" style="width: 18px; height: 18px;"></i>
+              Salvar Categoria
+            </button>
+            <button type="button" id="catDeleteBtn" class="btn btn-danger btn-full" style="display: none;">
+              <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i>
+              Excluir Categoria
+            </button>
+            <button type="button" class="btn btn-secondary btn-full" onclick="navigateTo('categories')">
+              Cancelar
+            </button>
+          </div>
+        </form>
+      </div>
+    </section>
+
+    <!-- 6 - MENU FIXO INFERIOR (BOTTOM BAR) -->
+    <nav class="bottom-nav">
+      <button type="button" class="nav-item active" data-view="home" onclick="navigateTo('home')">
+        <i data-lucide="home"></i>
+        <span>Home</span>
+      </button>
+      <button type="button" class="nav-item" data-view="transactions" onclick="navigateTo('transactions')">
+        <i data-lucide="receipt"></i>
+        <span>Transações</span>
+      </button>
+      <button type="button" class="nav-item nav-item-add" onclick="openNewTransaction()">
+        <div class="add-button-bubble">
+          <i data-lucide="plus"></i>
+        </div>
+      </button>
+      <button type="button" class="nav-item" data-view="categories" onclick="navigateTo('categories')">
+        <i data-lucide="shapes"></i>
+        <span>Categorias</span>
+      </button>
+      <button type="button" class="nav-item" data-view="form-transaction" onclick="openNewTransaction()">
+        <i data-lucide="plus-circle"></i>
+        <span>Novo</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Scripts -->
+  <script src="/static/js/api.js"></script>
+  <script src="/static/js/charts.js"></script>
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
