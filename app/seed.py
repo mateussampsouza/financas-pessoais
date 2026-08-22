@@ -13,10 +13,12 @@ DEFAULT_CATEGORIES = [
     {"name": "Outros", "icon": "tag", "color": "#64748b"},
 ]
 
-def seed_default_categories(db: Session):
-    count = db.query(Category).count()
+def seed_default_categories(db: Session, user_id: int):
+    """Create the default category set for a newly registered user.
+    Safe to call more than once: it's a no-op if the user already has categories."""
+    count = db.query(Category).filter(Category.user_id == user_id).count()
     if count == 0:
         for cat in DEFAULT_CATEGORIES:
-            category = Category(name=cat["name"], icon=cat["icon"], color=cat["color"])
+            category = Category(name=cat["name"], icon=cat["icon"], color=cat["color"], user_id=user_id)
             db.add(category)
         db.commit()

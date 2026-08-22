@@ -28,7 +28,8 @@ const state = {
   },
   categoriesCache: [],
   selectedCategoryIcon: 'tag',
-  selectedCategoryColor: '#6366f1'
+  selectedCategoryColor: '#6366f1',
+  currentUser: null
 };
 
 // Utilities
@@ -51,15 +52,158 @@ function getMonthStartAndEndDates() {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth();
-  
+
   const start = new Date(year, month, 1);
   const end = new Date(year, month + 1, 0);
 
   const startStr = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}-01`;
   const endStr = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, '0')}-${String(end.getDate()).padStart(2, '0')}`;
-  
+
   return { startStr, endStr };
 }
+
+// --- Toast Notifications (friendly error/success feedback) ---
+function showToast(message, variant = 'error') {
+  const container = document.getElementById('toastContainer');
+  if (!container) {
+    // Fallback if the toast container isn't available for some reason
+    alert(message);
+    return;
+  }
+
+  const toast = document.createElement('div');
+  toast.className = `toast toast-${variant}`;
+  toast.innerHTML = `
+    <i data-lucide="${variant === 'error' ? 'alert-circle' : 'check-circle-2'}"></i>
+    <span>${escapeHtml(message)}</span>
+  `;
+  container.appendChild(toast);
+  lucide.createIcons();
+
+  // Trigger enter animation
+  requestAnimationFrame(() => toast.classList.add('toast-visible'));
+
+  setTimeout(() => {
+    toast.classList.remove('toast-visible');
+    setTimeout(() => toast.remove(), 300);
+  }, 4500);
+}
+
+// --- Currency Masking Helpers (R$ 0,00 style, digits-as-cents) ---
+function maskCurrencyFromDigits(digitsOnly) {
+  const cents = parseInt(digitsOnly || '0', 10);
+  const value = cents / 100;
+  return value.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+}
+
+function parseCurrencyToFloat(formattedValue) {
+  if (!formattedValue) return 0;
+  const digitsOnly = String(formattedValue).replace(/\D/g, '');
+  if (!digitsOnly) return 0;
+  return parseInt(digitsOnly, 10) / 100;
+}
+
+function setCurrencyInputValue(inputEl, numericValue) {
+  const cents = Math.round((Number(numericValue) || 0) * 100);
+  inputEl.value = maskCurrencyFromDigits(String(cents));
+}
+
+function setupCurrencyMask() {
+  const input = document.getElementById('txAmount');
+  if (!input) return;
+  input.addEventListener('input', (e) => {
+    const digits = e.target.value.replace(/\D/g, '');
+    e.target.value = maskCurrencyFromDigits(digits);
+  });
+}
+
+// --- Auto-close calendar popovers as soon as a date is chosen ---
+function setupDateAutoClose() {
+  document.querySelectorAll('input[type="date"]').forEach(el => {
+    el.addEventListener('change', () => el.blur());
+  });
+}
+
+// --- Auth Screen ---
+function showAuthScreen() {
+  document.getElementById('authScreen').classList.add('active');
+  document.getElementById('appContainer').classList.remove('active');
+}
+
+function showApp(user) {
+  state.currentUser = user;
+  document.getElementById('authScreen').classList.remove('active');
+  document.getElementById('appContainer').classList.add('active');
+
+  const usernameEl = document.getElementById('headerUsername');
+  if (usernameEl) usernameEl.textContent = user.username;
+
+  navigateTo('home');
+  lucide.createIcons();
+}
+
+function switchAuthTab(tabName) {
+  document.querySelectorAll('.auth-tab').forEach(el => el.classList.toggle('active', el.dataset.tab === tabName));
+  document.getElementById('loginForm').classList.toggle('active', tabName === 'login');
+  document.getElementById('registerForm').classList.toggle('active', tabName === 'register');
+  document.getElementById('loginError').textContent = '';
+  document.getElementById('registerError').textContent = '';
+}
+
+async function handleLoginSubmit(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById('loginError');
+  errorEl.textContent = '';
+
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+
+  try {
+    await API.login(username, password);
+    const user = await API.getMe();
+    document.getElementById('loginForm').reset();
+    showApp(user);
+  } catch (err) {
+    errorEl.textContent = err.message;
+  }
+}
+
+async function handleRegisterSubmit(e) {
+  e.preventDefault();
+  const errorEl = document.getElementById('registerError');
+  errorEl.textContent = '';
+
+  const username = document.getElementById('registerUsername').value.trim();
+  const password = document.getElementById('registerPassword').value;
+  const passwordConfirm = document.getElementById('registerPasswordConfirm').value;
+
+  if (password !== passwordConfirm) {
+    errorEl.textContent = 'As senhas não coincidem.';
+    return;
+  }
+
+  try {
+    await API.register(username, password);
+    const user = await API.getMe();
+    document.getElementById('registerForm').reset();
+    showApp(user);
+  } catch (err) {
+    errorEl.textContent = err.message;
+  }
+}
+
+function handleLogout() {
+  API.logout();
+  state.currentUser = null;
+  showAuthScreen();
+}
+
+// Called globally by api.js whenever a request comes back 401 Unauthorized
+window.onSessionExpired = function () {
+  state.currentUser = null;
+  showAuthScreen();
+  showToast('Sessão expirada. Faça login novamente.', 'error');
+};
 
 // Navigation & View Routing
 function navigateTo(viewName) {
@@ -90,7 +234,7 @@ function navigateTo(viewName) {
 async function loadHomeData() {
   try {
     const summary = await API.getSummary();
-    
+
     // Balance
     const balEl = document.getElementById('homeBalanceAmount');
     balEl.textContent = formatCurrency(summary.current_balance);
@@ -216,9 +360,11 @@ async function loadCategoriesData() {
 }
 
 // Open Form: Transaction
-async function openNewTransaction() {
+// forcedType: when set (e.g. 'receita'), the type select is pre-selected and locked,
+// used by the bottom bar's "Receita" shortcut button.
+async function openNewTransaction(forcedType = null) {
   state.editingTransactionId = null;
-  document.getElementById('txFormTitle').textContent = 'Nova Transação';
+  document.getElementById('txFormTitle').textContent = forcedType === 'receita' ? 'Nova Receita' : 'Nova Transação';
   document.getElementById('txForm').reset();
   document.getElementById('txDeleteBtn').style.display = 'none';
 
@@ -229,8 +375,22 @@ async function openNewTransaction() {
   document.getElementById('txDate').value = dateStr;
   document.getElementById('txTime').value = timeStr;
 
+  // Reset the currency field to R$ 0,00
+  setCurrencyInputValue(document.getElementById('txAmount'), 0);
+
   // Populate categories dropdown
   await populateCategoriesDropdown();
+
+  const typeSelect = document.getElementById('txType');
+  const lockedHint = document.getElementById('txTypeLockedHint');
+  if (forcedType) {
+    typeSelect.value = forcedType;
+    typeSelect.disabled = true;
+    lockedHint.style.display = 'block';
+  } else {
+    typeSelect.disabled = false;
+    lockedHint.style.display = 'none';
+  }
 
   navigateTo('form-transaction');
 }
@@ -246,9 +406,11 @@ async function openEditTransaction(id) {
     const tx = await API.getTransaction(id);
     document.getElementById('txDescription').value = tx.description;
     document.getElementById('txType').value = tx.type;
-    document.getElementById('txAmount').value = tx.amount;
+    document.getElementById('txType').disabled = false;
+    document.getElementById('txTypeLockedHint').style.display = 'none';
+    setCurrencyInputValue(document.getElementById('txAmount'), tx.amount);
     document.getElementById('txCategory').value = tx.category_id;
-    
+
     const d = new Date(tx.date_time);
     const dateStr = d.toISOString().split('T')[0];
     const timeStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
@@ -258,14 +420,14 @@ async function openEditTransaction(id) {
 
     navigateTo('form-transaction');
   } catch (err) {
-    alert(err.message);
+    showToast(err.message);
   }
 }
 
 async function populateCategoriesDropdown() {
   const select = document.getElementById('txCategory');
   select.innerHTML = '<option value="">Selecione uma categoria...</option>';
-  
+
   const cats = await API.getCategories();
   cats.forEach(c => {
     const opt = document.createElement('option');
@@ -301,7 +463,7 @@ async function openEditCategory(id) {
 
     navigateTo('form-category');
   } catch (err) {
-    alert(err.message);
+    showToast(err.message);
   }
 }
 
@@ -342,14 +504,14 @@ async function handleTransactionSubmit(e) {
   e.preventDefault();
   const desc = document.getElementById('txDescription').value.trim();
   const type = document.getElementById('txType').value;
-  const amount = parseFloat(document.getElementById('txAmount').value);
+  const amount = parseCurrencyToFloat(document.getElementById('txAmount').value);
   const category_id = parseInt(document.getElementById('txCategory').value);
   const dateStr = document.getElementById('txDate').value;
   const timeStr = document.getElementById('txTime').value || '12:00';
   const repeat_monthly = document.getElementById('txRepeatMonthly').checked;
 
   if (!desc || isNaN(amount) || amount <= 0 || !category_id || !dateStr) {
-    alert('Por favor, preencha todos os campos obrigatórios corretamente.');
+    showToast('Por favor, preencha todos os campos obrigatórios corretamente.');
     return;
   }
 
@@ -372,7 +534,7 @@ async function handleTransactionSubmit(e) {
     }
     navigateTo('transactions');
   } catch (err) {
-    alert(err.message);
+    showToast(err.message);
   }
 }
 
@@ -383,7 +545,7 @@ async function handleDeleteTransaction() {
       await API.deleteTransaction(state.editingTransactionId);
       navigateTo('transactions');
     } catch (err) {
-      alert(err.message);
+      showToast(err.message);
     }
   }
 }
@@ -395,7 +557,7 @@ async function handleCategorySubmit(e) {
   const color = state.selectedCategoryColor || '#6366f1';
 
   if (!name) {
-    alert('Por favor, informe o nome da categoria.');
+    showToast('Por favor, informe o nome da categoria.');
     return;
   }
 
@@ -409,7 +571,7 @@ async function handleCategorySubmit(e) {
     }
     navigateTo('categories');
   } catch (err) {
-    alert(err.message);
+    showToast(err.message);
   }
 }
 
@@ -420,7 +582,8 @@ async function handleDeleteCategory() {
       await API.deleteCategory(state.editingCategoryId);
       navigateTo('categories');
     } catch (err) {
-      alert(err.message);
+      // Friendly feedback for the common case: category still has linked transactions
+      showToast(err.message);
     }
   }
 }
@@ -443,7 +606,7 @@ function escapeHtml(str) {
 document.addEventListener('DOMContentLoaded', () => {
   // Set default initial dates for filters (1st day and last day of current month)
   const { startStr, endStr } = getMonthStartAndEndDates();
-  
+
   state.txFilter.startDate = startStr;
   state.txFilter.endDate = endStr;
   document.getElementById('txFilterStart').value = startStr;
@@ -495,7 +658,26 @@ document.addEventListener('DOMContentLoaded', () => {
   setupIconPicker();
   setupColorPicker();
 
-  // Load initial home view
-  navigateTo('home');
+  // Setup currency mask & calendar auto-close
+  setupCurrencyMask();
+  setupDateAutoClose();
+
+  // Auth screen wiring
+  document.querySelectorAll('.auth-tab').forEach(tab => {
+    tab.addEventListener('click', () => switchAuthTab(tab.dataset.tab));
+  });
+  document.getElementById('loginForm').addEventListener('submit', handleLoginSubmit);
+  document.getElementById('registerForm').addEventListener('submit', handleRegisterSubmit);
+  document.getElementById('logoutBtn').addEventListener('click', handleLogout);
+
   lucide.createIcons();
+
+  // Boot: check for an existing session before showing the app
+  if (Auth.isLoggedIn()) {
+    API.getMe()
+      .then(user => showApp(user))
+      .catch(() => showAuthScreen());
+  } else {
+    showAuthScreen();
+  }
 });

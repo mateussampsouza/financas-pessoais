@@ -3,8 +3,9 @@ from typing import Optional, List
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
 from app.database import get_db
-from app.models import Category, Transaction
+from app.models import Category, Transaction, User
 from app.schemas import TransactionCreate, TransactionUpdate, TransactionResponse
+from app.auth import get_current_user
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
 
@@ -14,9 +15,10 @@ def get_transactions(
     end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
     type: Optional[str] = Query(None, description="Filter by type: 'despesa', 'receita', or 'all'"),
     category_id: Optional[int] = Query(None, description="Filter by category ID"),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
 ):
-    query = db.query(Transaction).options(joinedload(Transaction.category))
+    query = db.query(Transaction).options(joinedload(Transaction.category)).filter(Transaction.user_id == current_user.id)
 
     if start_date:
         try:
@@ -43,8 +45,8 @@ def get_transactions(
     return transactions
 
 @router.post("", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
-def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)):
-    category = db.query(Category).filter(Category.id == payload.category_id).first()
+def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    category = db.query(Category).filter(Category.id == payload.category_id, Category.user_id == current_user.id).first()
     if not category:
         raise HTTPException(status_code=400, detail="Category not found")
 
@@ -54,7 +56,8 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
         amount=payload.amount,
         category_id=payload.category_id,
         date_time=payload.date_time,
-        repeat_monthly=payload.repeat_monthly
+        repeat_monthly=payload.repeat_monthly,
+        user_id=current_user.id
     )
     db.add(transaction)
     db.commit()
@@ -62,20 +65,22 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
     return transaction
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
-def get_transaction(transaction_id: int, db: Session = Depends(get_db)):
-    tx = db.query(Transaction).options(joinedload(Transaction.category)).filter(Transaction.id == transaction_id).first()
+def get_transaction(transaction_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tx = db.query(Transaction).options(joinedload(Transaction.category)).filter(
+        Transaction.id == transaction_id, Transaction.user_id == current_user.id
+    ).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     return tx
 
 @router.put("/{transaction_id}", response_model=TransactionResponse)
-def update_transaction(transaction_id: int, payload: TransactionUpdate, db: Session = Depends(get_db)):
-    tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+def update_transaction(transaction_id: int, payload: TransactionUpdate, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tx = db.query(Transaction).filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
 
     if payload.category_id is not None:
-        category = db.query(Category).filter(Category.id == payload.category_id).first()
+        category = db.query(Category).filter(Category.id == payload.category_id, Category.user_id == current_user.id).first()
         if not category:
             raise HTTPException(status_code=400, detail="Category not found")
         tx.category_id = payload.category_id
@@ -94,11 +99,13 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db: Sess
     db.commit()
     db.refresh(tx)
     # Eager load category for response
-    return db.query(Transaction).options(joinedload(Transaction.category)).filter(Transaction.id == transaction_id).first()
+    return db.query(Transaction).options(joinedload(Transaction.category)).filter(
+        Transaction.id == transaction_id, Transaction.user_id == current_user.id
+    ).first()
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_transaction(transaction_id: int, db: Session = Depends(get_db)):
-    tx = db.query(Transaction).filter(Transaction.id == transaction_id).first()
+def delete_transaction(transaction_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    tx = db.query(Transaction).filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
     db.delete(tx)

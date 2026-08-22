@@ -4,30 +4,24 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from app.database import engine, Base, SessionLocal
-from app.seed import seed_default_categories
-from app.routers import categories, transactions, summary
+from app.database import engine, Base
+from app.routers import auth, categories, transactions, summary
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Initialize SQLite Database tables
+    # Initialize SQLite Database tables (Users, Categories, Transactions)
     Base.metadata.create_all(bind=engine)
-    # Seed initial categories if empty
-    db = SessionLocal()
-    try:
-        seed_default_categories(db)
-    finally:
-        db.close()
     yield
 
 app = FastAPI(
     title="Finanças Pessoais",
-    description="Aplicativo de Finanças Pessoais Responsivo com Tema Escuro e SQLite",
-    version="1.0.0",
+    description="Aplicativo de Finanças Pessoais Responsivo com Tema Escuro, SQLite e Autenticação",
+    version="2.0.0",
     lifespan=lifespan
 )
 
 # API Routers
+app.include_router(auth.router)
 app.include_router(categories.router)
 app.include_router(transactions.router)
 app.include_router(summary.router)

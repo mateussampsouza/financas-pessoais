@@ -2,6 +2,26 @@ from datetime import datetime
 from typing import Optional, Literal
 from pydantic import BaseModel, Field, ConfigDict
 
+# User / Auth Schemas
+class UserBase(BaseModel):
+    username: str = Field(..., min_length=3, max_length=50)
+
+class UserCreate(UserBase):
+    password: str = Field(..., min_length=6, max_length=128)
+
+class UserLogin(BaseModel):
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1, max_length=128)
+
+class UserResponse(UserBase):
+    id: int
+    created_at: datetime
+    model_config = ConfigDict(from_attributes=True)
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 # Category Schemas
 class CategoryBase(BaseModel):
     name: str = Field(..., min_length=1, max_length=100)
@@ -18,6 +38,7 @@ class CategoryUpdate(BaseModel):
 
 class CategoryResponse(CategoryBase):
     id: int
+    user_id: int
     model_config = ConfigDict(from_attributes=True)
 
 class CategoryWithExpense(CategoryResponse):
@@ -45,6 +66,7 @@ class TransactionUpdate(BaseModel):
 
 class TransactionResponse(TransactionBase):
     id: int
+    user_id: int
     category: CategoryResponse
     model_config = ConfigDict(from_attributes=True)
 
