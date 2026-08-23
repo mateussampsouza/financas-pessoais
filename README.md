@@ -47,18 +47,20 @@ Aplicativo web completo de finanças pessoais desenvolvido com **Python moderno 
 ## 🛠️ Como Executar
 
 ### 1. Pré-requisitos
-- Python 3.9+ instalado
+- Python 3.14+ instalado
 
 ### 2. Configurar o Ambiente Virtual e Instalar Dependências
 ```bash
 python3 -m venv venv
 source venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements-dev.txt   # inclui requirements.txt + ferramentas de teste/lint
 ```
+Para instalar apenas as dependências de produção (sem pytest/ruff), use `pip install -r requirements.txt`.
 
-### 3. Rodar os Testes Automatizados
+### 3. Rodar os Testes Automatizados e o Lint
 ```bash
 pytest
+ruff check .
 ```
 
 ### 4. Iniciar a Aplicação
@@ -71,6 +73,27 @@ Acesse no seu navegador: **[http://127.0.0.1:8000](http://127.0.0.1:8000)** ou a
 > **Sobre o `financas.db`**: como este app agora exige um usuário dono de cada categoria/transação, o banco de dados antigo (sem essa coluna) precisou ser recriado do zero. Se você tinha dados de teste no `financas.db` anterior, eles não foram migrados.
 
 > **Chave de segurança do JWT**: por padrão, uma chave é gerada automaticamente e salva em `.secret_key` na primeira execução (não versionado no git). Para definir a sua própria, exporte a variável de ambiente `FINANCAS_SECRET_KEY` antes de iniciar o servidor.
+
+> **⚠️ Persistência em produção (Railway)**: tanto o `financas.db` quanto o `.secret_key` são gravados em `FINANCAS_DATA_DIR` (`/data` no Docker). Se essa pasta não estiver associada a um **Volume persistente** no painel do Railway, cada novo deploy apaga o banco de dados inteiro e gera uma nova chave JWT (o que desloga todos os usuários). Confirme no painel do Railway que há um volume montado em `/data` antes de considerar o ambiente de produção confiável.
+
+---
+
+## 🔄 Migrações de Banco de Dados (Alembic)
+
+O projeto usa [Alembic](https://alembic.sqlalchemy.org/) para versionar mudanças no schema do banco. A aplicação continua criando tabelas automaticamente na primeira execução (`Base.metadata.create_all`), mas qualquer alteração de schema **a partir de agora** deve ser feita via migração, não editando `models.py` e recriando o banco do zero.
+
+**Criar uma nova migração após alterar `app/models.py`:**
+```bash
+alembic revision --autogenerate -m "descrição da mudança"
+alembic upgrade head
+```
+
+**Aplicar migrações pendentes em um ambiente existente:**
+```bash
+alembic upgrade head
+```
+
+> Se você já tem um `financas.db` criado antes da introdução do Alembic (schema já no formato atual, sem histórico de migração), rode uma vez `alembic stamp head` nesse banco para marcá-lo como atualizado, sem tentar recriar as tabelas.
 
 ---
 

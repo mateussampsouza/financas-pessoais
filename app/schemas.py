@@ -1,6 +1,8 @@
 from datetime import datetime
-from typing import Optional, Literal
-from pydantic import BaseModel, Field, ConfigDict
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field
+
 
 # User / Auth Schemas
 class UserBase(BaseModel):
@@ -32,9 +34,9 @@ class CategoryCreate(CategoryBase):
     pass
 
 class CategoryUpdate(BaseModel):
-    name: Optional[str] = Field(None, min_length=1, max_length=100)
-    icon: Optional[str] = Field(None, min_length=1, max_length=50)
-    color: Optional[str] = Field(None, min_length=1, max_length=20)
+    name: str | None = Field(None, min_length=1, max_length=100)
+    icon: str | None = Field(None, min_length=1, max_length=50)
+    color: str | None = Field(None, min_length=1, max_length=20)
 
 class CategoryResponse(CategoryBase):
     id: int
@@ -57,12 +59,12 @@ class TransactionCreate(TransactionBase):
     pass
 
 class TransactionUpdate(BaseModel):
-    description: Optional[str] = Field(None, min_length=1, max_length=255)
-    type: Optional[Literal["despesa", "receita"]] = None
-    amount: Optional[float] = Field(None, gt=0)
-    category_id: Optional[int] = None
-    date_time: Optional[datetime] = None
-    repeat_monthly: Optional[bool] = None
+    description: str | None = Field(None, min_length=1, max_length=255)
+    type: Literal["despesa", "receita"] | None = None
+    amount: float | None = Field(None, gt=0)
+    category_id: int | None = None
+    date_time: datetime | None = None
+    repeat_monthly: bool | None = None
 
 class TransactionResponse(TransactionBase):
     id: int

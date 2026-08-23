@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 WORKDIR /app
 
@@ -11,7 +11,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
 
-RUN mkdir -p /data
+RUN mkdir -p /data \
+    && useradd --create-home --shell /bin/false appuser \
+    && chown -R appuser:appuser /app /data
+
+USER appuser
 
 EXPOSE 8000
 

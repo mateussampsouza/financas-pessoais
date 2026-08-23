@@ -1,20 +1,21 @@
 from datetime import datetime, time
-from typing import Optional, List
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
+
+from app.auth import get_current_user
 from app.database import get_db
 from app.models import Category, Transaction, User
-from app.schemas import TransactionCreate, TransactionUpdate, TransactionResponse
-from app.auth import get_current_user
+from app.schemas import TransactionCreate, TransactionResponse, TransactionUpdate
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
 
-@router.get("", response_model=List[TransactionResponse])
+@router.get("", response_model=list[TransactionResponse])
 def get_transactions(
-    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
-    type: Optional[str] = Query(None, description="Filter by type: 'despesa', 'receita', or 'all'"),
-    category_id: Optional[int] = Query(None, description="Filter by category ID"),
+    start_date: str | None = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: str | None = Query(None, description="End date YYYY-MM-DD"),
+    type: str | None = Query(None, description="Filter by type: 'despesa', 'receita', or 'all'"),
+    category_id: int | None = Query(None, description="Filter by category ID"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -25,14 +26,14 @@ def get_transactions(
             s_date = datetime.strptime(start_date, "%Y-%m-%d")
             query = query.filter(Transaction.date_time >= datetime.combine(s_date, time.min))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD") from None
 
     if end_date:
         try:
             e_date = datetime.strptime(end_date, "%Y-%m-%d")
             query = query.filter(Transaction.date_time <= datetime.combine(e_date, time.max))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD") from None
 
     if type and type.lower() in ["despesa", "receita"]:
         query = query.filter(Transaction.type == type.lower())

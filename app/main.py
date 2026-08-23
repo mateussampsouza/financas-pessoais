@@ -1,11 +1,16 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
-from app.database import engine, Base
-from app.routers import auth, categories, transactions, summary
+from fastapi import FastAPI
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+
+from app.database import Base, engine
+from app.limiter import limiter
+from app.routers import auth, categories, summary, transactions
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -19,6 +24,9 @@ app = FastAPI(
     version="2.0.0",
     lifespan=lifespan
 )
+
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # API Routers
 app.include_router(auth.router)

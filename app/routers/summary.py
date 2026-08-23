@@ -1,18 +1,19 @@
-from datetime import datetime, timedelta, time
-from typing import Optional
+from datetime import datetime, time, timedelta
+
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy.orm import Session, joinedload
 from sqlalchemy import func
+from sqlalchemy.orm import Session, joinedload
+
+from app.auth import get_current_user
 from app.database import get_db
 from app.models import Transaction, User
-from app.schemas import SummaryResponse, TransactionResponse
-from app.auth import get_current_user
+from app.schemas import SummaryResponse
 
 router = APIRouter(prefix="/api/summary", tags=["Summary"])
 
 @router.get("", response_model=SummaryResponse)
 def get_summary(
-    base_date: Optional[str] = Query(None, description="Current reference date YYYY-MM-DD (defaults to today)"),
+    base_date: str | None = Query(None, description="Current reference date YYYY-MM-DD (defaults to today)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):

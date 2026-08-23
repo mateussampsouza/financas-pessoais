@@ -1,19 +1,20 @@
 from datetime import datetime, time
-from typing import Optional, List
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
+
+from app.auth import get_current_user
 from app.database import get_db
 from app.models import Category, Transaction, User
-from app.schemas import CategoryCreate, CategoryUpdate, CategoryResponse, CategoryWithExpense
-from app.auth import get_current_user
+from app.schemas import CategoryCreate, CategoryResponse, CategoryUpdate, CategoryWithExpense
 
 router = APIRouter(prefix="/api/categories", tags=["Categories"])
 
-@router.get("", response_model=List[CategoryWithExpense])
+@router.get("", response_model=list[CategoryWithExpense])
 def get_categories(
-    start_date: Optional[str] = Query(None, description="Start date YYYY-MM-DD"),
-    end_date: Optional[str] = Query(None, description="End date YYYY-MM-DD"),
+    start_date: str | None = Query(None, description="Start date YYYY-MM-DD"),
+    end_date: str | None = Query(None, description="End date YYYY-MM-DD"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
@@ -30,14 +31,14 @@ def get_categories(
             s_date = datetime.strptime(start_date, "%Y-%m-%d")
             expense_query = expense_query.filter(Transaction.date_time >= datetime.combine(s_date, time.min))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD") from None
 
     if end_date:
         try:
             e_date = datetime.strptime(end_date, "%Y-%m-%d")
             expense_query = expense_query.filter(Transaction.date_time <= datetime.combine(e_date, time.max))
         except ValueError:
-            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD")
+            raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD") from None
 
     expense_map = dict(expense_query.group_by(Transaction.category_id).all())
 

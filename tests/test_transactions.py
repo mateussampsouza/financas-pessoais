@@ -1,5 +1,3 @@
-from datetime import datetime
-
 def test_create_and_get_transaction(client, auth_headers):
     # Get a category
     categories = client.get("/api/categories", headers=auth_headers).json()
