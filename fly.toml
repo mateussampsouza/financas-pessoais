@@ -1,4 +1,4 @@
-app = "financas-pessoais"
+app = "financas-pessoais-mmm"
 primary_region = "gru"
 
 [build]
