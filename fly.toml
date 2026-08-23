@@ -1,0 +1,18 @@
+app = "financas-pessoais"
+primary_region = "gru"
+
+[build]
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[mounts]]
+  source = "financas_data"
+  destination = "/data"
+
+[env]
+  FINANCAS_DATA_DIR = "/data"

@@ -74,7 +74,7 @@ Acesse no seu navegador: **[http://127.0.0.1:8000](http://127.0.0.1:8000)** ou a
 
 > **Chave de segurança do JWT**: por padrão, uma chave é gerada automaticamente e salva em `.secret_key` na primeira execução (não versionado no git). Para definir a sua própria, exporte a variável de ambiente `FINANCAS_SECRET_KEY` antes de iniciar o servidor.
 
-> **⚠️ Persistência em produção (Railway)**: tanto o `financas.db` quanto o `.secret_key` são gravados em `FINANCAS_DATA_DIR` (`/data` no Docker). Se essa pasta não estiver associada a um **Volume persistente** no painel do Railway, cada novo deploy apaga o banco de dados inteiro e gera uma nova chave JWT (o que desloga todos os usuários). Confirme no painel do Railway que há um volume montado em `/data` antes de considerar o ambiente de produção confiável.
+> **⚠️ Persistência em produção (Fly.io)**: tanto o `financas.db` quanto o `.secret_key` são gravados em `FINANCAS_DATA_DIR` (`/data` no Docker). O `fly.toml` já declara um **Volume persistente** (`financas_data`) montado em `/data`; sem ele, cada novo deploy apaga o banco de dados inteiro e gera uma nova chave JWT (o que desloga todos os usuários). Confirme com `fly volumes list` que o volume existe e está anexado à app antes de considerar o ambiente de produção confiável.
 
 ---
 

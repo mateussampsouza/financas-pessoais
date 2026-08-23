@@ -1,6 +1,6 @@
 # Plano de Implementação: Aplicativo de Finanças Pessoais Moderno e Responsivo
 
-Aplicativo web completo de gestão financeira pessoal com interface responsiva mobile-first (desktop e smartphone), modo escuro elegante, autenticação de usuários com isolamento multi-tenant, backend em Python moderno (FastAPI + SQLite + SQLAlchemy / Pydantic), frontend reativo com visualização por gráficos (Chart.js), animações, testes automatizados (pytest) e empacotamento para deploy em produção (Docker / Railway).
+Aplicativo web completo de gestão financeira pessoal com interface responsiva mobile-first (desktop e smartphone), modo escuro elegante, autenticação de usuários com isolamento multi-tenant, backend em Python moderno (FastAPI + SQLite + SQLAlchemy / Pydantic), frontend reativo com visualização por gráficos (Chart.js), animações, testes automatizados (pytest) e empacotamento para deploy em produção (Docker / Fly.io).
 
 ---
 
@@ -19,7 +19,7 @@ Aplicativo web completo de gestão financeira pessoal com interface responsiva m
    - **Mobile-first Bottom Bar**: Menu fixo inferior estilizado para smartphones e adaptado para telas desktop.
 3. **Infraestrutura / Deploy**:
    - **Docker**: imagem baseada em `python:3.12-slim`, expõe a aplicação via `uvicorn` na porta definida pela variável de ambiente `PORT`.
-   - **Railway**: build via Dockerfile (`railway.json`), com diretório de dados configurável (`FINANCAS_DATA_DIR`) apontando para um volume persistente, garantindo que o banco SQLite e a chave JWT sobrevivam a novos deploys.
+   - **Fly.io**: build via Dockerfile (`fly.toml`), com diretório de dados configurável (`FINANCAS_DATA_DIR`) apontando para um volume persistente, garantindo que o banco SQLite e a chave JWT sobrevivam a novos deploys.
 
 ---
 
@@ -136,24 +136,25 @@ financas-pessoais-antg-prompt/
 │   └── test_summary.py      # Testes das métricas da Home, saldo e isolamento entre usuários
 ├── Dockerfile                # Build da imagem de produção (Python 3.12-slim + uvicorn)
 ├── .dockerignore              # Exclui venv, testes, cache e arquivos de banco/planejamento da imagem
-├── railway.json               # Configuração de build/deploy do Railway (builder Dockerfile, restart policy)
+├── fly.toml                    # Configuração de build/deploy do Fly.io (Dockerfile, volume persistente, http service)
 ├── requirements.txt           # fastapi, uvicorn, sqlalchemy, pydantic, pytest, httpx, bcrypt, python-jose, python-multipart
 └── README.md                  # Guia de execução e documentação
 ```
 
 ---
 
-## 🚀 Deploy (Docker / Railway)
+## 🚀 Deploy (Docker / Fly.io)
 
 1. **Containerização**:
    - `Dockerfile` instala as dependências de `requirements.txt`, copia apenas o pacote `app/` e inicia `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}`.
    - `.dockerignore` mantém a imagem enxuta, excluindo `venv/`, testes, cache do pytest, banco local e arquivos de planejamento.
 2. **Persistência de dados**:
    - `app/config.py` permite configurar o diretório de dados via `FINANCAS_DATA_DIR` (padrão: raiz do projeto), usado tanto para o arquivo SQLite (`financas.db`) quanto para o `.secret_key` do JWT.
-   - Em produção, essa variável deve apontar para um volume persistente (ex.: `/data`), criado manualmente no dashboard do Railway (ou via `railway volume add`), já que a definição de volumes não é suportada hoje no `railway.json`.
-3. **Configuração no Railway**:
-   - `railway.json` define o builder como `DOCKERFILE` e a política de restart (`ON_FAILURE`, até 5 tentativas).
-   - A porta é injetada automaticamente pela plataforma via variável `PORT`.
+   - `fly.toml` declara um volume persistente (`financas_data`) montado em `/data` e a variável `FINANCAS_DATA_DIR=/data`, garantindo que o banco e a chave JWT sobrevivam a novos deploys.
+3. **Configuração no Fly.io**:
+   - `fly.toml` define o build via Dockerfile, a região primária (`gru`), o `http_service` na porta interna 8000 e o mount do volume.
+   - Antes do primeiro deploy, criar o volume com `fly volumes create financas_data --region gru --size 1`.
+   - A CI (`.github/workflows/deploy.yml`) faz deploy com `flyctl deploy --remote-only`, autenticado via secret `FLY_API_TOKEN`.
 
 ---
 
@@ -173,4 +174,4 @@ financas-pessoais-antg-prompt/
    - Criar 2 usuários diferentes e confirmar que transações, categorias e saldos são 100% isolados.
 3. **Verificação de Deploy**:
    - `docker build -t financas .` e `docker run` local para validar a imagem antes do primeiro deploy.
-   - Após o deploy no Railway, confirmar que os dados (usuários, categorias, transações) sobrevivem a um novo deploy, validando o volume persistente em `FINANCAS_DATA_DIR`.
+   - Após o deploy no Fly.io, confirmar que os dados (usuários, categorias, transações) sobrevivem a um novo deploy, validando o volume persistente em `FINANCAS_DATA_DIR`.
