@@ -259,9 +259,23 @@ async function loadTransactionsData() {
       type: state.txFilter.type
     });
     renderTransactionsList(txs, 'transactionsList', false);
+    renderPeriodTotal(txs);
   } catch (err) {
     console.error(err);
   }
+}
+
+// Total (net) of the currently filtered transactions list: receitas somam, despesas subtraem.
+function renderPeriodTotal(transactions) {
+  const totalEl = document.getElementById('txPeriodTotalAmount');
+  if (!totalEl) return;
+
+  const total = (transactions || []).reduce((sum, tx) => {
+    return sum + (tx.type === 'receita' ? tx.amount : -tx.amount);
+  }, 0);
+
+  totalEl.textContent = formatCurrency(total);
+  totalEl.className = 'balance-amount ' + (total >= 0 ? 'positive' : 'negative');
 }
 
 function renderTransactionsList(transactions, containerId, isRecentView = false) {
@@ -324,6 +338,11 @@ async function loadCategoriesData() {
     // Render Donut Chart
     renderCategoryDonut(categories);
 
+    // Total de despesas do período, somando todas as categorias
+    const totalExpense = categories.reduce((sum, c) => sum + (c.total_expense || 0), 0);
+    const totalExpenseEl = document.getElementById('categoryTotalExpense');
+    if (totalExpenseEl) totalExpenseEl.textContent = formatCurrency(totalExpense);
+
     // Render Category Cards
     const container = document.getElementById('categoriesList');
     if (!container) return;
@@ -340,6 +359,19 @@ async function loadCategoriesData() {
     }
 
     container.innerHTML = categories.map(cat => {
+      const hasExpense = (cat.total_expense || 0) > 0;
+      const hasIncome = (cat.total_income || 0) > 0;
+
+      const expenseHtml = hasExpense
+        ? `<span class="cat-amount despesa">- ${formatCurrency(cat.total_expense)}</span>`
+        : '';
+      const incomeHtml = hasIncome
+        ? `<span class="cat-amount receita">${formatCurrency(cat.total_income)}</span>`
+        : '';
+      const amountsHtml = (hasExpense || hasIncome)
+        ? `<div class="cat-amounts">${expenseHtml}${incomeHtml}</div>`
+        : `<span class="cat-amount">${formatCurrency(0)}</span>`;
+
       return `
         <div class="category-card" onclick="openEditCategory(${cat.id})">
           <div class="cat-left">
@@ -348,7 +380,7 @@ async function loadCategoriesData() {
             </div>
             <span class="cat-name">${escapeHtml(cat.name)}</span>
           </div>
-          <span class="cat-amount">${formatCurrency(cat.total_expense)}</span>
+          ${amountsHtml}
         </div>
       `;
     }).join('');

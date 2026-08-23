@@ -262,6 +262,33 @@ body {
   justify-content: center;
 }
 
+.chart-total-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border-color);
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.chart-total-amount {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--expense-color);
+}
+
+/* Period Total Card (Transactions view) */
+.period-total-card {
+  position: sticky;
+  bottom: calc(var(--bottom-bar-height) + 14px);
+  margin-top: 4px;
+  z-index: 10;
+  box-shadow: var(--shadow-md), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
 /* Filter Section */
 .filter-bar {
   display: flex;
@@ -283,6 +310,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  min-width: 0;
 }
 
 .form-group label {
@@ -303,6 +331,16 @@ body {
   outline: none;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
   width: 100%;
+  min-width: 0;
+}
+
+/* Date/time native inputs have their own intrinsic min-content width; without this
+   they ignore the grid track's 1fr and overflow past their column (see .filter-dates
+   and .form-row) instead of shrinking their internal layout to fit. */
+input[type="date"].input-control,
+input[type="time"].input-control {
+  padding-left: 8px;
+  padding-right: 8px;
 }
 
 .input-control:focus, .select-control:focus {
@@ -542,6 +580,21 @@ body {
   font-size: 1.05rem;
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.cat-amounts {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 2px;
+}
+
+.cat-amount.despesa {
+  color: var(--expense-color);
+}
+
+.cat-amount.receita {
+  color: var(--income-color);
 }
 
 /* Forms */

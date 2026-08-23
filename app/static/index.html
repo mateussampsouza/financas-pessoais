@@ -151,6 +151,12 @@
       <div id="transactionsList" class="transaction-list">
         <!-- Rendered dynamically -->
       </div>
+
+      <!-- Period Total Card (stays pinned above the bottom nav while scrolling) -->
+      <div class="card period-total-card">
+        <span class="balance-label">Total do Período</span>
+        <div id="txPeriodTotalAmount" class="balance-amount">R$ 0,00</div>
+      </div>
     </section>
 
     <!-- 3 - TELA CATEGORIAS -->
@@ -177,6 +183,10 @@
         </div>
         <div class="chart-box donut-box">
           <canvas id="categoryDonutChart"></canvas>
+        </div>
+        <div class="chart-total-row">
+          <span>Total de Despesas</span>
+          <span id="categoryTotalExpense" class="chart-total-amount">R$ 0,00</span>
         </div>
       </div>
 

@@ -20,31 +20,37 @@ def get_categories(
 ):
     categories = db.query(Category).filter(Category.user_id == current_user.id).order_by(Category.name).all()
 
-    # Query total expenses per category in the specified period, scoped to this user
-    expense_query = db.query(
+    # Query total per type (despesa/receita) per category in the specified period, scoped to this user
+    totals_query = db.query(
         Transaction.category_id,
-        func.sum(Transaction.amount).label("total_expense")
-    ).filter(Transaction.type == "despesa", Transaction.user_id == current_user.id)
+        Transaction.type,
+        func.sum(Transaction.amount).label("total")
+    ).filter(Transaction.user_id == current_user.id)
 
     if start_date:
         try:
             s_date = datetime.strptime(start_date, "%Y-%m-%d")
-            expense_query = expense_query.filter(Transaction.date_time >= datetime.combine(s_date, time.min))
+            totals_query = totals_query.filter(Transaction.date_time >= datetime.combine(s_date, time.min))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid start_date format. Use YYYY-MM-DD") from None
 
     if end_date:
         try:
             e_date = datetime.strptime(end_date, "%Y-%m-%d")
-            expense_query = expense_query.filter(Transaction.date_time <= datetime.combine(e_date, time.max))
+            totals_query = totals_query.filter(Transaction.date_time <= datetime.combine(e_date, time.max))
         except ValueError:
             raise HTTPException(status_code=400, detail="Invalid end_date format. Use YYYY-MM-DD") from None
 
-    expense_map = dict(expense_query.group_by(Transaction.category_id).all())
+    expense_map = {}
+    income_map = {}
+    for category_id, tx_type, total in totals_query.group_by(Transaction.category_id, Transaction.type).all():
+        if tx_type == "despesa":
+            expense_map[category_id] = total
+        else:
+            income_map[category_id] = total
 
     result = []
     for cat in categories:
-        total = float(expense_map.get(cat.id, 0.0) or 0.0)
         result.append(
             CategoryWithExpense(
                 id=cat.id,
@@ -52,7 +58,8 @@ def get_categories(
                 name=cat.name,
                 icon=cat.icon,
                 color=cat.color,
-                total_expense=total
+                total_expense=float(expense_map.get(cat.id, 0.0) or 0.0),
+                total_income=float(income_map.get(cat.id, 0.0) or 0.0)
             )
         )
     return result

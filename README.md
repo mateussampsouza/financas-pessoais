@@ -24,11 +24,12 @@ Aplicativo web completo de finanças pessoais desenvolvido com **Python moderno 
    - Botões interativos para alternar entre **Todas**, **Despesas** ou **Receitas**.
    - Cards com descrição, tipo, categoria com ícone e cor, valor e data/hora.
    - Clique no card abre em modo de edição.
+   - Card fixo (sticky) ao final da lista com o **total do período** filtrado (receitas somam, despesas subtraem).
 
 4. **🏷️ Tela Categorias**:
    - Filtro por período (padrão: mês atual).
-   - **Gráfico em Donut** interativo mostrando o percentual e valor de despesas por categoria no período.
-   - Cards de categorias com ícone, cor personalizada, nome e total gasto no período.
+   - **Gráfico em Donut** interativo mostrando o percentual e valor de despesas por categoria no período, com o **total de despesas** do período exibido logo abaixo do gráfico.
+   - Cards de categorias com ícone, cor personalizada, nome e total gasto/recebido no período — despesas em vermelho com sinal de menos, receitas em verde sem sinal; categorias com movimentação de ambos os tipos mostram os dois valores.
    - Criação de novas categorias e edição com seletor visual de ícones e paleta de cores.
    - Categorias com transações vinculadas não podem ser excluídas — o app exibe um aviso amigável explicando o motivo.
 
@@ -78,6 +79,37 @@ Acesse no seu navegador: **[http://127.0.0.1:8000](http://127.0.0.1:8000)** ou a
 
 ---
 
+## 🐳 Como Executar com Docker
+
+O projeto já inclui um `Dockerfile` pronto para produção (imagem baseada em `python:3.14-slim`, roda como usuário não-root).
+
+### 1. Build da Imagem
+```bash
+docker build -t financas-pessoais .
+```
+
+### 2. Rodar o Container
+```bash
+docker run -d \
+  --name financas-pessoais \
+  -p 8000:8000 \
+  -v financas_data:/data \
+  -e FINANCAS_SECRET_KEY=troque-por-uma-chave-secreta \
+  financas-pessoais
+```
+- `-v financas_data:/data` cria um **volume nomeado** para persistir `financas.db` e `.secret_key` entre reinícios/recriações do container — sem ele, os dados são perdidos a cada novo `docker run`/`docker build`.
+- `-e FINANCAS_SECRET_KEY=...` é opcional, mas recomendado em produção (caso omitido, uma chave é gerada automaticamente dentro do volume na primeira execução).
+- O container respeita a variável `PORT` (usada pelo Fly.io); localmente, sem defini-la, o Uvicorn sobe na porta `8000`.
+
+Acesse em **[http://127.0.0.1:8000](http://127.0.0.1:8000)**.
+
+### 3. Parar e Remover
+```bash
+docker stop financas-pessoais && docker rm financas-pessoais
+```
+
+---
+
 ## 🔄 Migrações de Banco de Dados (Alembic)
 
 O projeto usa [Alembic](https://alembic.sqlalchemy.org/) para versionar mudanças no schema do banco. A aplicação continua criando tabelas automaticamente na primeira execução (`Base.metadata.create_all`), mas qualquer alteração de schema **a partir de agora** deve ser feita via migração, não editando `models.py` e recriando o banco do zero.
@@ -105,3 +137,33 @@ O projeto inclui testes automatizados para:
 - Registro, atualização, exclusão e filtros avançados de transações por data e tipo.
 - Cálculo de saldo consolidado e filtro de transações recentes na tela Home.
 - Isolamento completo de dados entre usuários diferentes (categorias, transações e resumo).
+
+---
+
+## 🚢 CI/CD com GitHub Actions + Fly.io
+
+O workflow em [`.github/workflows/deploy.yml`](.github/workflows/deploy.yml) automatiza testes e deploy a cada alteração no repositório:
+
+1. **Job `test`** (roda em todo `push` e `pull request` para `main`):
+   - Instala as dependências de `requirements-dev.txt`.
+   - Executa `ruff check .` (lint) e `pytest` (suíte de testes).
+2. **Job `deploy`** (roda apenas em `push` para `main`, e só depois que o job `test` passar):
+   - Usa `superfly/flyctl-actions` para instalar o `flyctl`.
+   - Executa `flyctl deploy --remote-only`, que faz o build da imagem Docker remotamente na infraestrutura da Fly.io e atualiza a aplicação, usando o `fly.toml` do repositório.
+
+Ou seja: **Pull Requests só rodam testes** (nada é publicado), e **apenas um merge/push em `main` com os testes passando** dispara o deploy real em produção.
+
+### Configurar o Secret `FLY_API_TOKEN`
+O job de deploy depende de um token de API da Fly.io configurado como secret do repositório:
+
+1. Gere um token: `fly tokens create deploy` (ou `fly auth token`, com o [flyctl](https://fly.io/docs/flyctl/) instalado e autenticado).
+2. No GitHub, acesse **Settings → Secrets and variables → Actions → New repository secret**.
+3. Nome: `FLY_API_TOKEN`. Valor: o token gerado no passo 1.
+
+Sem esse secret configurado, o job `deploy` falha na etapa de autenticação com a Fly.io.
+
+### Deploy manual (sem esperar o CI)
+Com o [flyctl](https://fly.io/docs/flyctl/) instalado e autenticado localmente:
+```bash
+fly deploy --remote-only
+```

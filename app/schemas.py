@@ -45,6 +45,7 @@ class CategoryResponse(CategoryBase):
 
 class CategoryWithExpense(CategoryResponse):
     total_expense: float = 0.0
+    total_income: float = 0.0
 
 # Transaction Schemas
 class TransactionBase(BaseModel):
