@@ -3,7 +3,9 @@ import secrets
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DB_PATH = os.path.join(BASE_DIR, "financas.db")
+DATA_DIR = Path(os.environ.get("FINANCAS_DATA_DIR", BASE_DIR))
+DATA_DIR.mkdir(parents=True, exist_ok=True)
+DB_PATH = os.path.join(DATA_DIR, "financas.db")
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # --- Authentication / JWT settings ---
@@ -18,7 +20,7 @@ def _load_or_create_secret_key() -> str:
     if env_secret:
         return env_secret
 
-    secret_file = BASE_DIR / ".secret_key"
+    secret_file = DATA_DIR / ".secret_key"
     if secret_file.exists():
         return secret_file.read_text().strip()
 

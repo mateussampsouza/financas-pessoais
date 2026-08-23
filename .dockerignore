@@ -1,0 +1,13 @@
+venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
+.gitignore
+tests/
+financas.db
+.secret_key
+.DS_Store
+implementation_plan.md
+financas-pessoais-prompt.txt
+financas-pessoais-prompt-melhorias.txt
