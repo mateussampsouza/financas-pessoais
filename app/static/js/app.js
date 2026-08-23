@@ -275,7 +275,7 @@ function renderPeriodTotal(transactions) {
   }, 0);
 
   totalEl.textContent = formatCurrency(total);
-  totalEl.className = 'balance-amount ' + (total >= 0 ? 'positive' : 'negative');
+  totalEl.className = 'period-total-amount ' + (total >= 0 ? 'positive' : 'negative');
 }
 
 function renderTransactionsList(transactions, containerId, isRecentView = false) {

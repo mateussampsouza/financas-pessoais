@@ -6,6 +6,9 @@
   <title>Finanças Pessoais - Gestão Financeira Inteligente</title>
   <meta name="description" content="Aplicativo de finanças pessoais responsivo com modo escuro, gráficos interativos e controle total de despesas e receitas.">
 
+  <!-- Favicon -->
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+
   <!-- Google Fonts Outfit -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -26,7 +29,7 @@
     <div class="auth-card">
       <div class="auth-brand">
         <div class="header-icon-box">
-          <i data-lucide="wallet-cards"></i>
+          <img src="/static/favicon.svg" alt="Finanças" class="header-icon-img">
         </div>
         <h1 class="header-title">Finanças</h1>
       </div>
@@ -84,7 +87,7 @@
     <header class="app-header">
       <div class="header-brand">
         <div class="header-icon-box">
-          <i data-lucide="wallet-cards"></i>
+          <img src="/static/favicon.svg" alt="Finanças" class="header-icon-img">
         </div>
         <h1 class="header-title">Finanças</h1>
       </div>
@@ -154,8 +157,8 @@
 
       <!-- Period Total Card (stays pinned above the bottom nav while scrolling) -->
       <div class="card period-total-card">
-        <span class="balance-label">Total do Período</span>
-        <div id="txPeriodTotalAmount" class="balance-amount">R$ 0,00</div>
+        <span class="period-total-label">Total do Período</span>
+        <span id="txPeriodTotalAmount" class="period-total-amount">R$ 0,00</span>
       </div>
     </section>
 

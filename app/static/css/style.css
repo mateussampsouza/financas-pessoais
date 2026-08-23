@@ -96,12 +96,19 @@ body {
   width: 38px;
   height: 38px;
   border-radius: var(--radius-sm);
-  background: var(--accent-gradient);
   display: flex;
   align-items: center;
   justify-content: center;
   color: #fff;
   box-shadow: var(--shadow-glow);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.header-icon-img {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
 .header-title {
@@ -286,7 +293,31 @@ body {
   bottom: calc(var(--bottom-bar-height) + 14px);
   margin-top: 4px;
   z-index: 10;
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
   box-shadow: var(--shadow-md), 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.period-total-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.period-total-amount {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.period-total-amount.positive {
+  color: var(--income-color);
+}
+
+.period-total-amount.negative {
+  color: var(--expense-color);
 }
 
 /* Filter Section */
@@ -302,7 +333,11 @@ body {
 
 .filter-dates {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  /* auto-fit + minmax: native date inputs have a hard minimum rendering width that
+     CSS can't shrink below. Forcing a fixed 1fr 1fr let that minimum burst past its
+     column edge on narrow screens; auto-fit instead wraps each field onto its own
+     row once there isn't enough room for both at their minimum width. */
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 10px;
 }
 
@@ -334,13 +369,16 @@ body {
   min-width: 0;
 }
 
-/* Date/time native inputs have their own intrinsic min-content width; without this
-   they ignore the grid track's 1fr and overflow past their column (see .filter-dates
-   and .form-row) instead of shrinking their internal layout to fit. */
+/* Date/time native inputs have their own intrinsic min-content width; auto-fit on
+   .filter-dates/.form-row keeps their column at least 140px so that width is never
+   forced below what the native control needs. overflow:hidden here is just a last-
+   resort clip so an unusually wide native rendering (locale/OS/zoom) is contained
+   inside its own box instead of bleeding over the neighboring field. */
 input[type="date"].input-control,
 input[type="time"].input-control {
   padding-left: 8px;
   padding-right: 8px;
+  overflow: hidden;
 }
 
 .input-control:focus, .select-control:focus {
@@ -606,7 +644,7 @@ input[type="time"].input-control {
 
 .form-row {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
   gap: 12px;
 }
 
