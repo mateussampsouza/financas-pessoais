@@ -1,4 +1,7 @@
-from datetime import datetime, time
+import calendar
+import uuid
+from datetime import datetime, time, timedelta
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session, joinedload
@@ -9,6 +12,29 @@ from app.models import Category, Transaction, User
 from app.schemas import TransactionCreate, TransactionResponse, TransactionUpdate
 
 router = APIRouter(prefix="/api/transactions", tags=["Transactions"])
+
+
+def _shift_months(base: datetime, months: int) -> datetime:
+    total = base.month - 1 + months
+    year = base.year + total // 12
+    month = total % 12 + 1
+    day = min(base.day, calendar.monthrange(year, month)[1])
+    return base.replace(year=year, month=month, day=day)
+
+
+def _occurrence_date(base: datetime, recurrence: str, offset: int) -> datetime:
+    """Date of the occurrence `offset` steps away from `base` (negative = past)."""
+    if offset == 0:
+        return base
+    if recurrence == "diaria":
+        return base + timedelta(days=offset)
+    if recurrence == "semanal":
+        return base + timedelta(weeks=offset)
+    if recurrence == "mensal":
+        return _shift_months(base, offset)
+    if recurrence == "anual":
+        return _shift_months(base, offset * 12)
+    return base
 
 @router.get("", response_model=list[TransactionResponse])
 def get_transactions(
@@ -51,19 +77,50 @@ def create_transaction(payload: TransactionCreate, db: Session = Depends(get_db)
     if not category:
         raise HTTPException(status_code=400, detail="Category not found")
 
-    transaction = Transaction(
-        description=payload.description.strip(),
-        type=payload.type,
-        amount=payload.amount,
-        category_id=payload.category_id,
-        date_time=payload.date_time,
-        repeat_monthly=payload.repeat_monthly,
-        user_id=current_user.id
-    )
-    db.add(transaction)
+    if payload.recurrence == "nunca":
+        transaction = Transaction(
+            description=payload.description.strip(),
+            type=payload.type,
+            amount=payload.amount,
+            category_id=payload.category_id,
+            date_time=payload.date_time,
+            recurrence="nunca",
+            user_id=current_user.id
+        )
+        db.add(transaction)
+        db.commit()
+        db.refresh(transaction)
+        return transaction
+
+    # Recurring series: `recurrence_installment` is this transaction's position (1-indexed)
+    # within a `recurrence_quantity`-long series. Positions before it are generated into
+    # the past, positions after it into the future, all sharing one recurrence_group_id.
+    quantity = payload.recurrence_quantity
+    installment = payload.recurrence_installment
+    group_id = str(uuid.uuid4())
+    created_transaction = None
+
+    for position in range(1, quantity + 1):
+        occurrence_date = _occurrence_date(payload.date_time, payload.recurrence, position - installment)
+        tx = Transaction(
+            description=payload.description.strip(),
+            type=payload.type,
+            amount=payload.amount,
+            category_id=payload.category_id,
+            date_time=occurrence_date,
+            recurrence=payload.recurrence,
+            recurrence_quantity=quantity,
+            recurrence_installment=position,
+            recurrence_group_id=group_id,
+            user_id=current_user.id
+        )
+        db.add(tx)
+        if position == installment:
+            created_transaction = tx
+
     db.commit()
-    db.refresh(transaction)
-    return transaction
+    db.refresh(created_transaction)
+    return created_transaction
 
 @router.get("/{transaction_id}", response_model=TransactionResponse)
 def get_transaction(transaction_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
@@ -94,8 +151,6 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db: Sess
         tx.amount = payload.amount
     if payload.date_time is not None:
         tx.date_time = payload.date_time
-    if payload.repeat_monthly is not None:
-        tx.repeat_monthly = payload.repeat_monthly
 
     db.commit()
     db.refresh(tx)
@@ -105,10 +160,24 @@ def update_transaction(transaction_id: int, payload: TransactionUpdate, db: Sess
     ).first()
 
 @router.delete("/{transaction_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_transaction(transaction_id: int, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+def delete_transaction(
+    transaction_id: int,
+    mode: Literal["only", "following"] = Query("only", description="'only' deletes just this transaction; 'following' also deletes later transactions in the same recurrence series"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user)
+):
     tx = db.query(Transaction).filter(Transaction.id == transaction_id, Transaction.user_id == current_user.id).first()
     if not tx:
         raise HTTPException(status_code=404, detail="Transaction not found")
-    db.delete(tx)
+
+    if mode == "following" and tx.recurrence_group_id:
+        db.query(Transaction).filter(
+            Transaction.user_id == current_user.id,
+            Transaction.recurrence_group_id == tx.recurrence_group_id,
+            Transaction.date_time >= tx.date_time
+        ).delete(synchronize_session=False)
+    else:
+        db.delete(tx)
+
     db.commit()
     return None

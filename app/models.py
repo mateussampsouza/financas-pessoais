@@ -1,6 +1,6 @@
 from datetime import UTC, datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Column, DateTime, Float, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import relationship
 
 from app.database import Base
@@ -46,7 +46,10 @@ class Transaction(Base):
     amount = Column(Float, nullable=False)
     category_id = Column(Integer, ForeignKey("categories.id", ondelete="RESTRICT"), nullable=False)
     date_time = Column(DateTime, nullable=False)
-    repeat_monthly = Column(Boolean, default=False, nullable=False)
+    recurrence = Column(String(10), default="nunca", nullable=False)
+    recurrence_quantity = Column(Integer, nullable=True)
+    recurrence_installment = Column(Integer, nullable=True)
+    recurrence_group_id = Column(String(36), nullable=True, index=True)
 
     user = relationship("User", back_populates="transactions")
     category = relationship("Category", back_populates="transactions")

@@ -255,9 +255,27 @@
             </div>
           </div>
 
-          <div class="checkbox-group" style="margin-bottom: 18px;">
-            <input type="checkbox" id="txRepeatMonthly">
-            <label for="txRepeatMonthly" class="checkbox-label">Repetir mensalmente</label>
+          <div class="form-group" style="margin-bottom: 12px;">
+            <label for="txRecurrence">Recorrência</label>
+            <select id="txRecurrence" class="select-control">
+              <option value="nunca">Nunca</option>
+              <option value="diaria">Diária</option>
+              <option value="semanal">Semanal</option>
+              <option value="mensal">Mensal</option>
+              <option value="anual">Anual</option>
+            </select>
+            <span id="txRecurrenceLockedHint" class="field-hint" style="display: none;">Recorrência não pode ser alterada após a criação</span>
+          </div>
+
+          <div class="form-row" style="margin-bottom: 18px;">
+            <div class="form-group">
+              <label for="txRecurrenceQuantity">Quantidade</label>
+              <input type="number" id="txRecurrenceQuantity" class="input-control" inputmode="numeric" min="1" max="99" step="1" disabled>
+            </div>
+            <div class="form-group">
+              <label for="txRecurrenceInstallment">Parcela</label>
+              <input type="number" id="txRecurrenceInstallment" class="input-control" inputmode="numeric" min="1" max="99" step="1" value="1" disabled>
+            </div>
           </div>
 
           <div class="form-actions">
@@ -348,6 +366,19 @@
 
   <!-- Toast Container -->
   <div id="toastContainer" class="toast-container"></div>
+
+  <!-- Delete Recurring Transaction Modal -->
+  <div id="deleteRecurrenceModal" class="modal-overlay" style="display: none;">
+    <div class="modal-box card">
+      <h3 class="modal-title">Excluir transação recorrente</h3>
+      <p class="modal-text">Esta transação faz parte de uma série recorrente. O que você deseja excluir?</p>
+      <div class="modal-actions">
+        <button type="button" id="deleteFollowingBtn" class="btn btn-danger btn-full">Excluir esta e as seguintes</button>
+        <button type="button" id="deleteOnlyBtn" class="btn btn-secondary btn-full">Excluir somente esta</button>
+        <button type="button" id="deleteCancelBtn" class="btn btn-secondary btn-full">Cancelar</button>
+      </div>
+    </div>
+  </div>
 
   <!-- Scripts -->
   <script src="/static/js/api.js"></script>

@@ -147,8 +147,8 @@ const API = {
     return await res.json();
   },
 
-  async deleteTransaction(id) {
-    const res = await apiFetch(`/api/transactions/${id}`, {
+  async deleteTransaction(id, mode = 'only') {
+    const res = await apiFetch(`/api/transactions/${id}?mode=${encodeURIComponent(mode)}`, {
       method: 'DELETE'
     });
     if (!res.ok) throw new Error('Erro ao excluir transação');

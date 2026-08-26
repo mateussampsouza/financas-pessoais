@@ -16,6 +16,7 @@ const AVAILABLE_COLORS = [
 const state = {
   currentView: 'home',
   editingTransactionId: null,
+  editingTransactionRecurrenceGroupId: null,
   editingCategoryId: null,
   txFilter: {
     startDate: '',
@@ -396,9 +397,16 @@ async function loadCategoriesData() {
 // used by the bottom bar's "Receita" shortcut button.
 async function openNewTransaction(forcedType = null) {
   state.editingTransactionId = null;
+  state.editingTransactionRecurrenceGroupId = null;
   document.getElementById('txFormTitle').textContent = forcedType === 'receita' ? 'Nova Receita' : 'Nova Transação';
   document.getElementById('txForm').reset();
   document.getElementById('txDeleteBtn').style.display = 'none';
+
+  document.getElementById('txRecurrence').disabled = false;
+  document.getElementById('txRecurrenceLockedHint').style.display = 'none';
+  document.getElementById('txRecurrence').value = 'nunca';
+  document.getElementById('txRecurrenceInstallment').value = '1';
+  updateRecurrenceFieldsState();
 
   // Set default current date and time
   const now = new Date();
@@ -448,12 +456,62 @@ async function openEditTransaction(id) {
     const timeStr = String(d.getHours()).padStart(2, '0') + ':' + String(d.getMinutes()).padStart(2, '0');
     document.getElementById('txDate').value = dateStr;
     document.getElementById('txTime').value = timeStr;
-    document.getElementById('txRepeatMonthly').checked = !!tx.repeat_monthly;
+
+    // Recurrence, quantidade and parcela are fixed at creation time and locked here:
+    // editing one occurrence must never change how the rest of the series was generated.
+    state.editingTransactionRecurrenceGroupId = tx.recurrence_group_id || null;
+    document.getElementById('txRecurrence').value = tx.recurrence || 'nunca';
+    document.getElementById('txRecurrenceQuantity').value = tx.recurrence_quantity ?? '';
+    document.getElementById('txRecurrenceInstallment').value = tx.recurrence_installment ?? '';
+    document.getElementById('txRecurrence').disabled = true;
+    document.getElementById('txRecurrenceQuantity').disabled = true;
+    document.getElementById('txRecurrenceInstallment').disabled = true;
+    document.getElementById('txRecurrenceLockedHint').style.display = 'block';
 
     navigateTo('form-transaction');
   } catch (err) {
     showToast(err.message);
   }
+}
+
+// Recurrence Fields (Recorrência / Quantidade / Parcela)
+function updateRecurrenceFieldsState() {
+  if (state.editingTransactionId) return; // locked while editing an existing transaction
+
+  const recurrence = document.getElementById('txRecurrence').value;
+  const qtyInput = document.getElementById('txRecurrenceQuantity');
+  const instInput = document.getElementById('txRecurrenceInstallment');
+  const isNever = recurrence === 'nunca';
+
+  qtyInput.disabled = isNever;
+  instInput.disabled = isNever;
+
+  if (isNever) {
+    qtyInput.value = '';
+    instInput.value = '1';
+  } else if (!qtyInput.value) {
+    qtyInput.value = '1';
+  }
+  clampRecurrenceInstallment();
+}
+
+function clampRecurrenceInstallment() {
+  const qtyInput = document.getElementById('txRecurrenceQuantity');
+  const instInput = document.getElementById('txRecurrenceInstallment');
+  const qty = parseInt(qtyInput.value, 10) || 1;
+  instInput.max = qty;
+  if (parseInt(instInput.value, 10) > qty) {
+    instInput.value = String(qty);
+  }
+}
+
+// Restricts a numeric input to at most 2 digits (0-99), stripping non-digit chars.
+function enforceTwoDigitNumericInput(e) {
+  let digits = e.target.value.replace(/[^0-9]/g, '').slice(0, 2);
+  if (digits !== '') {
+    digits = String(Math.min(parseInt(digits, 10), 99));
+  }
+  e.target.value = digits;
 }
 
 async function populateCategoriesDropdown() {
@@ -540,7 +598,6 @@ async function handleTransactionSubmit(e) {
   const category_id = parseInt(document.getElementById('txCategory').value);
   const dateStr = document.getElementById('txDate').value;
   const timeStr = document.getElementById('txTime').value || '12:00';
-  const repeat_monthly = document.getElementById('txRepeatMonthly').checked;
 
   if (!desc || isNaN(amount) || amount <= 0 || !category_id || !dateStr) {
     showToast('Por favor, preencha todos os campos obrigatórios corretamente.');
@@ -554,9 +611,18 @@ async function handleTransactionSubmit(e) {
     type: type,
     amount: amount,
     category_id: category_id,
-    date_time: dateTimeIso,
-    repeat_monthly: repeat_monthly
+    date_time: dateTimeIso
   };
+
+  // Recurrence is only set on creation; it's locked (and not sent) when editing.
+  if (!state.editingTransactionId) {
+    const recurrence = document.getElementById('txRecurrence').value;
+    payload.recurrence = recurrence;
+    if (recurrence !== 'nunca') {
+      payload.recurrence_quantity = parseInt(document.getElementById('txRecurrenceQuantity').value, 10) || 1;
+      payload.recurrence_installment = parseInt(document.getElementById('txRecurrenceInstallment').value, 10) || 1;
+    }
+  }
 
   try {
     if (state.editingTransactionId) {
@@ -572,13 +638,23 @@ async function handleTransactionSubmit(e) {
 
 async function handleDeleteTransaction() {
   if (!state.editingTransactionId) return;
+
+  if (state.editingTransactionRecurrenceGroupId) {
+    document.getElementById('deleteRecurrenceModal').style.display = 'flex';
+    return;
+  }
+
   if (confirm('Tem certeza que deseja excluir esta transação?')) {
-    try {
-      await API.deleteTransaction(state.editingTransactionId);
-      navigateTo('transactions');
-    } catch (err) {
-      showToast(err.message);
-    }
+    await performDeleteTransaction('only');
+  }
+}
+
+async function performDeleteTransaction(mode) {
+  try {
+    await API.deleteTransaction(state.editingTransactionId, mode);
+    navigateTo('transactions');
+  } catch (err) {
+    showToast(err.message);
   }
 }
 
@@ -682,6 +758,28 @@ document.addEventListener('DOMContentLoaded', () => {
   // Forms setup
   document.getElementById('txForm').addEventListener('submit', handleTransactionSubmit);
   document.getElementById('txDeleteBtn').addEventListener('click', handleDeleteTransaction);
+
+  document.getElementById('txRecurrence').addEventListener('change', updateRecurrenceFieldsState);
+  document.getElementById('txRecurrenceQuantity').addEventListener('input', (e) => {
+    enforceTwoDigitNumericInput(e);
+    clampRecurrenceInstallment();
+  });
+  document.getElementById('txRecurrenceInstallment').addEventListener('input', (e) => {
+    enforceTwoDigitNumericInput(e);
+    clampRecurrenceInstallment();
+  });
+
+  document.getElementById('deleteFollowingBtn').addEventListener('click', () => {
+    document.getElementById('deleteRecurrenceModal').style.display = 'none';
+    performDeleteTransaction('following');
+  });
+  document.getElementById('deleteOnlyBtn').addEventListener('click', () => {
+    document.getElementById('deleteRecurrenceModal').style.display = 'none';
+    performDeleteTransaction('only');
+  });
+  document.getElementById('deleteCancelBtn').addEventListener('click', () => {
+    document.getElementById('deleteRecurrenceModal').style.display = 'none';
+  });
 
   document.getElementById('catForm').addEventListener('submit', handleCategorySubmit);
   document.getElementById('catDeleteBtn').addEventListener('click', handleDeleteCategory);
