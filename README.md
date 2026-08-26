@@ -113,6 +113,57 @@ Acesse em **[http://127.0.0.1:8000](http://127.0.0.1:8000)**.
 docker stop financas-pessoais && docker rm financas-pessoais
 ```
 
+### 4. Sincronizar o banco local (fora do Docker) com o banco do Docker local
+
+Ao rodar `uvicorn` diretamente na sua máquina (fora do Docker) e também rodar o container local, você acaba com **dois arquivos `financas.db` completamente separados**, mesmo sendo o mesmo projeto:
+
+- **Local (fora do Docker)**: `financas.db` na raiz do repositório — porque `FINANCAS_DATA_DIR` não é definida nesse cenário, o [`app/config.py`](app/config.py) usa `BASE_DIR` (a raiz do projeto) como diretório de dados.
+- **Docker local**: `/data/financas.db` **dentro do volume nomeado `financas_data`** (criado pelo `-v financas_data:/data` do comando acima) — um volume gerenciado pelo Docker, fora da pasta do projeto.
+
+Como o banco é SQLite (um único arquivo), "sincronizar" os dois é uma questão de copiar esse arquivo — ou eliminar a duplicidade montando o mesmo arquivo nos dois lugares. Duas abordagens:
+
+#### Opção A — Copiar o arquivo manualmente (`docker cp`)
+
+Útil para uma sincronização pontual, sem mudar como o container roda.
+
+**Levar os dados locais para dentro do container:**
+```bash
+docker cp financas.db financas-pessoais:/data/financas.db
+docker restart financas-pessoais
+```
+
+**Trazer os dados do container para o ambiente local:**
+```bash
+docker cp financas-pessoais:/data/financas.db ./financas.db
+```
+
+> Se quiser manter também a mesma sessão JWT nos dois ambientes, copie o `.secret_key` da mesma forma (`docker cp .secret_key financas-pessoais:/data/.secret_key` ou o caminho inverso) e reinicie o container.
+
+Essa opção exige rodar o `docker cp` de novo toda vez que um dos dois bancos mudar — os arquivos voltam a divergir assim que você usa o app em qualquer um dos dois lados.
+
+#### Opção B (recomendada para desenvolvimento) — Bind mount, para os dois usarem o mesmo arquivo
+
+Em vez do volume nomeado `financas_data`, monte a própria raiz do projeto em `/data`. Assim o container passa a ler e escrever exatamente o `financas.db` (e o `.secret_key`) que você já usa localmente — os dois ambientes ficam sempre em sync, sem nenhuma cópia manual:
+
+```bash
+docker run -d \
+  --name financas-pessoais \
+  -p 8000:8000 \
+  -v "$(pwd):/data" \
+  -e FINANCAS_SECRET_KEY=troque-por-uma-chave-secreta \
+  financas-pessoais
+```
+
+- `-v "$(pwd):/data"` substitui o volume nomeado por um **bind mount** da raiz do repositório — o `financas.db` e o `.secret_key` do container passam a ser literalmente os mesmos arquivos da sua pasta local.
+- Como o `CMD` do `Dockerfile` roda `alembic upgrade head` a cada início do container, isso também mantém o schema local em dia automaticamente sempre que você sobe o container — não seria mais necessário rodar `alembic upgrade head` manualmente após esse container iniciar.
+- Essa abordagem é indicada apenas para **desenvolvimento local**; em produção (Fly.io) continue usando o volume persistente `financas_data`, como descrito na seção de deploy e no `fly.toml`.
+
+Se você já tinha o container rodando com o volume nomeado (Opção padrão da seção 2) e quer migrar para o bind mount, remova o container antigo antes de recriá-lo com o novo comando:
+```bash
+docker stop financas-pessoais && docker rm financas-pessoais
+```
+(o volume nomeado `financas_data` continua existindo no Docker mesmo depois disso — use a Opção A para copiar dados dele antes de recriar o container, caso ainda precise deles.)
+
 ---
 
 ## 🔄 Migrações de Banco de Dados (Alembic)
