@@ -18,7 +18,7 @@ Aplicativo web completo de gestão financeira pessoal com interface responsiva m
    - **Ícones**: Lucide Icons modernos e seletor intuitivo de ícones/cores para categorias.
    - **Mobile-first Bottom Bar**: Menu fixo inferior estilizado para smartphones e adaptado para telas desktop.
 3. **Infraestrutura / Deploy**:
-   - **Docker**: imagem baseada em `python:3.12-slim`, expõe a aplicação via `uvicorn` na porta definida pela variável de ambiente `PORT`.
+   - **Docker**: imagem baseada em `python:3.14-slim`, expõe a aplicação via `uvicorn` na porta definida pela variável de ambiente `PORT`; o `CMD` roda `alembic upgrade head` antes do `uvicorn`, aplicando migrações de schema pendentes a cada início do container.
    - **Fly.io**: build via Dockerfile (`fly.toml`), com diretório de dados configurável (`FINANCAS_DATA_DIR`) apontando para um volume persistente, garantindo que o banco SQLite e a chave JWT sobrevivam a novos deploys.
 
 ---
@@ -81,8 +81,17 @@ Aplicativo web completo de gestão financeira pessoal com interface responsiva m
   - Valor, com **máscara monetária dinâmica** em tempo real (ex: `R$ 0,00` → `R$ 1.250,50`), com parsing transparente para decimal/float no envio à API e preenchimento correto ao editar transações existentes.
   - Categoria (seleção dinâmica com visualização do ícone e cor)
   - Data e Hora
-  - Repetir mensalmente (checkbox/toggle)
+  - **Recorrência**: select com `nunca`, `diária`, `semanal`, `mensal`, `anual`
+  - **Quantidade**: total de ocorrências da série (numérico, 1-99); desabilitado quando Recorrência = `nunca`
+  - **Parcela**: posição da transação atual dentro da série (numérico, 1-99), sempre limitada ao valor de Quantidade (o campo trava o próprio `max` e reduz o valor digitado se exceder)
 - Ações: Botão Salvar, Botão Excluir (quando em edição), Botão Cancelar/Voltar.
+- **Regra de geração de recorrência**: dado `quantidade = N` e `parcela = P` (posição da ocorrência sendo criada dentro da série), o backend gera as `N` transações da série de uma só vez — `P-1` ocorrências no passado e `N-P` no futuro a partir da data/hora informada — todas com a mesma descrição, tipo, valor, categoria e hora, mudando apenas a data:
+  - `diária`: cada ocorrência soma/subtrai 1 dia da anterior.
+  - `semanal`: soma/subtrai 7 dias, mantendo o mesmo dia da semana.
+  - `mensal`/`anual`: mesmo dia do mês/ano, com ajuste automático para meses mais curtos (ex.: 31/01 recorrente mensal → 28/02, ou 29/02 em ano bissexto).
+  - Todas as ocorrências de uma mesma série compartilham um `recurrence_group_id`.
+- **Edição não propaga**: editar qualquer campo de uma ocorrência (descrição, valor, categoria, data/hora) nunca altera as demais transações da série — os campos Recorrência, Quantidade e Parcela ficam bloqueados tanto na UI (`disabled`) quanto na API (o schema de atualização não os aceita).
+- **Exclusão com diálogo de escolha**: ao excluir uma transação que pertence a uma série (`recurrence_group_id` não nulo), um modal de confirmação (novo componente — o app não tinha nenhum modal antes) pergunta se deve excluir **somente aquela ocorrência** ou **ela e todas as seguintes** da série (a partir da data clicada em diante; ocorrências anteriores nunca são afetadas). O endpoint `DELETE /api/transactions/{id}` aceita `?mode=only|following` para isso.
 
 ### 5. Tela Nova / Editar Categoria
 - Campos:
@@ -132,12 +141,16 @@ financas-pessoais-antg-prompt/
 │   ├── conftest.py          # Fixtures de banco de dados em memória e usuário autenticado para testes
 │   ├── test_auth.py         # Testes de registro, login, senha incorreta e validação de token
 │   ├── test_categories.py   # Testes dos endpoints de categorias, incluindo bloqueio de exclusão vinculada
-│   ├── test_transactions.py # Testes de criação, edição, filtros e repetição mensal
+│   ├── test_transactions.py # Testes de criação, edição, filtros e recorrência (geração diária/semanal/mensal, validação, edição isolada, exclusão only/following)
 │   └── test_summary.py      # Testes das métricas da Home, saldo e isolamento entre usuários
-├── Dockerfile                # Build da imagem de produção (Python 3.12-slim + uvicorn)
+├── alembic/
+│   ├── env.py                # Configuração do Alembic (lê DATABASE_URL de app/config.py)
+│   └── versions/              # Migrações versionadas do schema (ex: recurrence_group_id, recurrence_quantity, recurrence_installment)
+├── alembic.ini                 # Configuração do Alembic (script_location)
+├── Dockerfile                # Build da imagem de produção (Python 3.14-slim + uvicorn); copia alembic/ e roda `alembic upgrade head` antes do uvicorn no CMD
 ├── .dockerignore              # Exclui venv, testes, cache e arquivos de banco/planejamento da imagem
 ├── fly.toml                    # Configuração de build/deploy do Fly.io (Dockerfile, volume persistente, http service)
-├── requirements.txt           # fastapi, uvicorn, sqlalchemy, pydantic, pytest, httpx, bcrypt, python-jose, python-multipart
+├── requirements.txt           # fastapi, uvicorn, sqlalchemy, pydantic, pytest, httpx, bcrypt, python-jose, python-multipart, alembic
 └── README.md                  # Guia de execução e documentação
 ```
 
@@ -146,7 +159,7 @@ financas-pessoais-antg-prompt/
 ## 🚀 Deploy (Docker / Fly.io)
 
 1. **Containerização**:
-   - `Dockerfile` instala as dependências de `requirements.txt`, copia apenas o pacote `app/` e inicia `uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}`.
+   - `Dockerfile` instala as dependências de `requirements.txt`, copia o pacote `app/` além de `alembic/` e `alembic.ini`, e no `CMD` executa `alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}` — todo início de container já aplica migrações pendentes antes de servir requisições.
    - `.dockerignore` mantém a imagem enxuta, excluindo `venv/`, testes, cache do pytest, banco local e arquivos de planejamento.
 2. **Persistência de dados**:
    - `app/config.py` permite configurar o diretório de dados via `FINANCAS_DATA_DIR` (padrão: raiz do projeto), usado tanto para o arquivo SQLite (`financas.db`) quanto para o `.secret_key` do JWT.
@@ -162,6 +175,7 @@ financas-pessoais-antg-prompt/
 
 1. **Testes Automatizados**:
    - Rodar `pytest` cobrindo: cadastro, login, senha incorreta e token inválido/ausente; CRUD de categorias e transações; bloqueio de exclusão de categoria vinculada; filtros de data e tipo; cálculo de saldo e transações recentes; isolamento completo de dados entre usuários diferentes.
+   - Recorrência de transações: geração correta de séries diárias/semanais/mensais (incluindo ajuste de dia em meses curtos), validação de Quantidade/Parcela obrigatórios e consistentes, edição de uma ocorrência sem afetar as demais da série, e os dois modos de exclusão (`only` e `following`).
 2. **Testes de Interface e Navegação (Manual / Browser)**:
    - Iniciar o servidor FastAPI (`uvicorn app.main:app --reload --host 127.0.0.1 --port 8000`).
    - Testar fluxo completo de cadastro e login de novos usuários.
@@ -172,6 +186,8 @@ financas-pessoais-antg-prompt/
    - Clicar no botão `Receita` do menu inferior e verificar pré-seleção como Receita.
    - Tentar excluir uma categoria vinculada a uma transação e conferir a mensagem de bloqueio.
    - Criar 2 usuários diferentes e confirmar que transações, categorias e saldos são 100% isolados.
+   - Selecionar cada opção de Recorrência e verificar que Quantidade/Parcela habilitam/desabilitam corretamente e que Parcela nunca excede Quantidade; criar uma série e confirmar que todas as ocorrências aparecem na lista de Transações; abrir uma ocorrência para editar e confirmar que Recorrência/Quantidade/Parcela aparecem bloqueados; excluir uma ocorrência do meio da série com "esta e as seguintes" e confirmar que só as anteriores permanecem.
 3. **Verificação de Deploy**:
    - `docker build -t financas .` e `docker run` local para validar a imagem antes do primeiro deploy.
+   - Confirmar que o container roda `alembic upgrade head` no start (logs mostram a migração antes da linha do `uvicorn`) e que o schema do banco reflete a versão mais recente.
    - Após o deploy no Fly.io, confirmar que os dados (usuários, categorias, transações) sobrevivem a um novo deploy, validando o volume persistente em `FINANCAS_DATA_DIR`.

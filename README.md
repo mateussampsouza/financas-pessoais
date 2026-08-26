@@ -34,7 +34,10 @@ Aplicativo web completo de finanças pessoais desenvolvido com **Python moderno 
    - Categorias com transações vinculadas não podem ser excluídas — o app exibe um aviso amigável explicando o motivo.
 
 5. **➕ Telas de Nova/Editar Transação**:
-   - Formulário completo: tipo (despesa/receita), descrição, valor (com máscara monetária em tempo real, ex: `R$ 1.250,50`), seleção de categoria, data, hora e repetição mensal.
+   - Formulário completo: tipo (despesa/receita), descrição, valor (com máscara monetária em tempo real, ex: `R$ 1.250,50`), seleção de categoria, data, hora e recorrência.
+   - **Recorrência configurável**: campo "Recorrência" (Nunca, Diária, Semanal, Mensal, Anual) + "Quantidade" (total de ocorrências da série, 1-99) + "Parcela" (posição da transação atual dentro da série, sempre ≤ Quantidade). Ao salvar, o app gera de uma vez todas as ocorrências passadas e futuras da série (mesma descrição, tipo, valor, categoria e hora — só a data muda).
+   - Recorrência, Quantidade e Parcela ficam **bloqueados na edição**: alterar uma ocorrência nunca reflete nas demais da série.
+   - Ao excluir uma transação recorrente, um diálogo pergunta se a exclusão deve afetar **somente aquela ocorrência** ou **ela e todas as seguintes** da série.
    - Botão para salvar, cancelar e excluir transações existentes.
 
 6. **🎨 Telas de Nova/Editar Categoria**:
@@ -83,6 +86,8 @@ Acesse no seu navegador: **[http://127.0.0.1:8000](http://127.0.0.1:8000)** ou a
 
 O projeto já inclui um `Dockerfile` pronto para produção (imagem baseada em `python:3.14-slim`, roda como usuário não-root).
 
+A imagem já inclui `alembic/` e `alembic.ini`, e o `CMD` executa `alembic upgrade head` antes de iniciar o `uvicorn` — qualquer container novo (local ou em produção) já sobe com o schema do banco atualizado, sem passo manual.
+
 ### 1. Build da Imagem
 ```bash
 docker build -t financas-pessoais .
@@ -114,6 +119,8 @@ docker stop financas-pessoais && docker rm financas-pessoais
 
 O projeto usa [Alembic](https://alembic.sqlalchemy.org/) para versionar mudanças no schema do banco. A aplicação continua criando tabelas automaticamente na primeira execução (`Base.metadata.create_all`), mas qualquer alteração de schema **a partir de agora** deve ser feita via migração, não editando `models.py` e recriando o banco do zero.
 
+> **Em Docker/produção (Fly.io) isso já é automático**: o `CMD` do `Dockerfile` roda `alembic upgrade head` antes do `uvicorn` a cada início do container, então um novo deploy já aplica as migrações pendentes no volume persistente sem intervenção manual. **Em desenvolvimento local** (`uvicorn` executado diretamente, fora do Docker), nada dispara a migração automaticamente — rode `alembic upgrade head` você mesmo depois de puxar uma alteração de schema.
+
 **Criar uma nova migração após alterar `app/models.py`:**
 ```bash
 alembic revision --autogenerate -m "descrição da mudança"
@@ -135,6 +142,7 @@ O projeto inclui testes automatizados para:
 - Criação, edição, exclusão e validação de duplicidade de categorias.
 - Bloqueio de exclusão de categorias com transações vinculadas.
 - Registro, atualização, exclusão e filtros avançados de transações por data e tipo.
+- Geração de séries recorrentes (diária, semanal, mensal) com posicionamento correto de passado/futuro via Quantidade/Parcela, validação dos dois campos, edição que não afeta as demais ocorrências e os dois modos de exclusão (`only` / `following`).
 - Cálculo de saldo consolidado e filtro de transações recentes na tela Home.
 - Isolamento completo de dados entre usuários diferentes (categorias, transações e resumo).
 
