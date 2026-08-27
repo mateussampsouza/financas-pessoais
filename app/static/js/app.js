@@ -18,6 +18,8 @@ const state = {
   editingTransactionId: null,
   editingTransactionRecurrenceGroupId: null,
   editingCategoryId: null,
+  viewingCategoryId: null,
+  categoryFormReturnView: 'categories',
   txFilter: {
     startDate: '',
     endDate: '',
@@ -26,6 +28,11 @@ const state = {
   catFilter: {
     startDate: '',
     endDate: ''
+  },
+  catDetailFilter: {
+    startDate: '',
+    endDate: '',
+    type: 'all'
   },
   categoriesCache: [],
   selectedCategoryIcon: 'tag',
@@ -226,6 +233,8 @@ function navigateTo(viewName) {
     loadTransactionsData();
   } else if (viewName === 'categories') {
     loadCategoriesData();
+  } else if (viewName === 'category-detail') {
+    loadCategoryDetailData();
   }
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -267,8 +276,8 @@ async function loadTransactionsData() {
 }
 
 // Total (net) of the currently filtered transactions list: receitas somam, despesas subtraem.
-function renderPeriodTotal(transactions) {
-  const totalEl = document.getElementById('txPeriodTotalAmount');
+function renderPeriodTotal(transactions, elementId = 'txPeriodTotalAmount') {
+  const totalEl = document.getElementById(elementId);
   if (!totalEl) return;
 
   const total = (transactions || []).reduce((sum, tx) => {
@@ -374,7 +383,7 @@ async function loadCategoriesData() {
         : `<span class="cat-amount">${formatCurrency(0)}</span>`;
 
       return `
-        <div class="category-card" onclick="openEditCategory(${cat.id})">
+        <div class="category-card" onclick="openCategoryDetail(${cat.id})">
           <div class="cat-left">
             <div class="cat-icon-box" style="background-color: ${cat.color};">
               <i data-lucide="${cat.icon || 'tag'}"></i>
@@ -530,6 +539,7 @@ async function populateCategoriesDropdown() {
 // Open Form: Category
 function openNewCategory() {
   state.editingCategoryId = null;
+  state.categoryFormReturnView = 'categories';
   document.getElementById('catFormTitle').textContent = 'Nova Categoria';
   document.getElementById('catForm').reset();
   document.getElementById('catDeleteBtn').style.display = 'none';
@@ -540,9 +550,12 @@ function openNewCategory() {
   navigateTo('form-category');
 }
 
-async function openEditCategory(id) {
+// returnView: which view to go back to after saving/cancelling (e.g. 'category-detail'
+// when the edit was opened from there, so the user lands back on it instead of the list).
+async function openEditCategory(id, returnView = 'categories') {
   try {
     state.editingCategoryId = id;
+    state.categoryFormReturnView = returnView;
     document.getElementById('catFormTitle').textContent = 'Editar Categoria';
     document.getElementById('catDeleteBtn').style.display = 'block';
 
@@ -552,6 +565,56 @@ async function openEditCategory(id) {
     selectCategoryColor(cat.color || '#6366f1');
 
     navigateTo('form-category');
+  } catch (err) {
+    showToast(err.message);
+  }
+}
+
+function cancelCategoryForm() {
+  navigateTo(state.categoryFormReturnView || 'categories');
+}
+
+// Category Detail View (name/icon/color + edit shortcut + filtered transactions list)
+async function openCategoryDetail(id) {
+  state.viewingCategoryId = id;
+
+  const { startStr, endStr } = getMonthStartAndEndDates();
+  state.catDetailFilter.startDate = startStr;
+  state.catDetailFilter.endDate = endStr;
+  state.catDetailFilter.type = 'all';
+  document.getElementById('catDetailFilterStart').value = startStr;
+  document.getElementById('catDetailFilterEnd').value = endStr;
+  document.querySelectorAll('#catDetailTypeToggleGroup .type-toggle-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.type === 'all');
+  });
+
+  navigateTo('category-detail');
+}
+
+function editCurrentCategoryDetail() {
+  if (state.viewingCategoryId) {
+    openEditCategory(state.viewingCategoryId, 'category-detail');
+  }
+}
+
+async function loadCategoryDetailData() {
+  if (!state.viewingCategoryId) return;
+  try {
+    const cat = await API.getCategory(state.viewingCategoryId);
+    document.getElementById('catDetailName').textContent = cat.name;
+    document.getElementById('catDetailIconBox').style.backgroundColor = cat.color || '#6366f1';
+    document.getElementById('catDetailIconBox').innerHTML = `<i data-lucide="${cat.icon || 'tag'}"></i>`;
+
+    const txs = await API.getTransactions({
+      startDate: state.catDetailFilter.startDate,
+      endDate: state.catDetailFilter.endDate,
+      type: state.catDetailFilter.type,
+      categoryId: state.viewingCategoryId
+    });
+    renderTransactionsList(txs, 'catDetailTransactionsList', false);
+    renderPeriodTotal(txs, 'catDetailPeriodTotalAmount');
+
+    lucide.createIcons();
   } catch (err) {
     showToast(err.message);
   }
@@ -677,7 +740,7 @@ async function handleCategorySubmit(e) {
     } else {
       await API.createCategory(payload);
     }
-    navigateTo('categories');
+    navigateTo(state.categoryFormReturnView || 'categories');
   } catch (err) {
     showToast(err.message);
   }
@@ -735,10 +798,11 @@ document.addEventListener('DOMContentLoaded', () => {
     loadTransactionsData();
   });
 
-  // Type Toggle Filter
-  document.querySelectorAll('.type-toggle-btn').forEach(btn => {
+  // Type Toggle Filter (scoped to this group's container so it doesn't affect
+  // other .type-toggle-btn groups elsewhere in the app, e.g. category detail)
+  document.querySelectorAll('#txTypeToggleGroup .type-toggle-btn').forEach(btn => {
     btn.addEventListener('click', () => {
-      document.querySelectorAll('.type-toggle-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('#txTypeToggleGroup .type-toggle-btn').forEach(b => b.classList.remove('active'));
       btn.classList.add('active');
       state.txFilter.type = btn.dataset.type;
       loadTransactionsData();
@@ -753,6 +817,24 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('catFilterEnd').addEventListener('change', (e) => {
     state.catFilter.endDate = e.target.value;
     loadCategoriesData();
+  });
+
+  // Filter Listeners: Category Detail (date range + type toggle)
+  document.getElementById('catDetailFilterStart').addEventListener('change', (e) => {
+    state.catDetailFilter.startDate = e.target.value;
+    loadCategoryDetailData();
+  });
+  document.getElementById('catDetailFilterEnd').addEventListener('change', (e) => {
+    state.catDetailFilter.endDate = e.target.value;
+    loadCategoryDetailData();
+  });
+  document.querySelectorAll('#catDetailTypeToggleGroup .type-toggle-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      document.querySelectorAll('#catDetailTypeToggleGroup .type-toggle-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      state.catDetailFilter.type = btn.dataset.type;
+      loadCategoryDetailData();
+    });
   });
 
   // Forms setup
