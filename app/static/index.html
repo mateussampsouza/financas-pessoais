@@ -144,7 +144,7 @@
         </div>
 
         <!-- Filter Toggle Buttons -->
-        <div class="type-toggle-group">
+        <div class="type-toggle-group" id="txTypeToggleGroup">
           <button type="button" class="type-toggle-btn active" data-type="all">Todas</button>
           <button type="button" class="type-toggle-btn" data-type="despesa">Despesas</button>
           <button type="button" class="type-toggle-btn" data-type="receita">Receitas</button>
@@ -209,6 +209,63 @@
       <!-- Category Cards List -->
       <div id="categoriesList" class="category-list">
         <!-- Rendered dynamically -->
+      </div>
+    </section>
+
+    <!-- 3.5 - TELA DETALHE DA CATEGORIA -->
+    <section id="view-category-detail" class="view">
+      <div class="section-header">
+        <button type="button" class="btn-icon" onclick="navigateTo('categories')" title="Voltar">
+          <i data-lucide="arrow-left"></i>
+        </button>
+      </div>
+
+      <!-- Category Header Card -->
+      <div class="card category-detail-header">
+        <div class="cat-detail-info">
+          <div id="catDetailIconBox" class="cat-icon-box cat-detail-icon-box">
+            <i data-lucide="tag"></i>
+          </div>
+          <span id="catDetailName" class="cat-detail-name"></span>
+        </div>
+        <button type="button" class="btn-icon" onclick="editCurrentCategoryDetail()" title="Editar Categoria">
+          <i data-lucide="pencil"></i>
+        </button>
+      </div>
+
+      <!-- Filter Bar -->
+      <div class="filter-bar">
+        <div class="filter-dates">
+          <div class="form-group">
+            <label for="catDetailFilterStart">Data Inicial</label>
+            <input type="date" id="catDetailFilterStart" class="input-control">
+          </div>
+          <div class="form-group">
+            <label for="catDetailFilterEnd">Data Final</label>
+            <input type="date" id="catDetailFilterEnd" class="input-control">
+          </div>
+        </div>
+
+        <!-- Filter Toggle Buttons -->
+        <div class="type-toggle-group" id="catDetailTypeToggleGroup">
+          <button type="button" class="type-toggle-btn active" data-type="all">Todas</button>
+          <button type="button" class="type-toggle-btn" data-type="despesa">Despesas</button>
+          <button type="button" class="type-toggle-btn" data-type="receita">Receitas</button>
+        </div>
+      </div>
+
+      <!-- Transactions List -->
+      <div class="section-header">
+        <h2 class="section-title">Transações da Categoria</h2>
+      </div>
+      <div id="catDetailTransactionsList" class="transaction-list">
+        <!-- Rendered dynamically -->
+      </div>
+
+      <!-- Period Total Card (stays pinned above the bottom nav while scrolling) -->
+      <div class="card period-total-card">
+        <span class="period-total-label">Total do Período</span>
+        <span id="catDetailPeriodTotalAmount" class="period-total-amount">R$ 0,00</span>
       </div>
     </section>
 
@@ -329,7 +386,7 @@
               <i data-lucide="trash-2" style="width: 18px; height: 18px;"></i>
               Excluir Categoria
             </button>
-            <button type="button" class="btn btn-secondary btn-full" onclick="navigateTo('categories')">
+            <button type="button" class="btn btn-secondary btn-full" onclick="cancelCategoryForm()">
               Cancelar
             </button>
           </div>
